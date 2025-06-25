@@ -29,6 +29,14 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _selectedIndex = index;
     });
+
+    // Khi chuyển đến tab profile, tải lại thông tin user
+    if (index == 4) {
+      // Tab profile được chọn
+      print('Profile tab selected, refreshing user data');
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      authProvider.getCurrentUser();
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -37,6 +45,120 @@ class _MainScreenState extends State<MainScreen> {
     if (mounted) {
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
+  }
+
+  Widget _buildDrawerHeader(BuildContext context) {
+    return DrawerHeader(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircleAvatar(
+            radius: 30,
+            backgroundColor: Colors.white,
+            child: Icon(
+              Icons.person,
+              size: 35,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Xin chào,',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Consumer<AuthProvider>(
+            builder: (context, authProvider, _) {
+              // Cố gắng lấy thông tin từ các key phổ biến
+              final name = _getValueFromKeys(authProvider.userData,
+                  ['name', 'fullName', 'full_name', 'username']);
+
+              final phone = _getValueFromKeys(authProvider.userData,
+                  ['phone', 'phone_number', 'phoneNumber', 'mobile']);
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (name != null && name.isNotEmpty)
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  if (phone != null && phone.isNotEmpty)
+                    Text(
+                      phone,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    const Text(
+                      'Khách hàng',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                ],
+              );
+            },
+          )
+        ],
+      ),
+    );
+  }
+
+  // Helper để lấy giá trị từ danh sách các key khả dụng
+  String? _getValueFromKeys(Map<String, dynamic> data, List<String> keys) {
+    // Kiểm tra trực tiếp
+    for (final key in keys) {
+      if (data.containsKey(key) &&
+          data[key] != null &&
+          data[key].toString().isNotEmpty) {
+        return data[key].toString();
+      }
+    }
+
+    // Kiểm tra trong data nếu có
+    if (data.containsKey('data') && data['data'] is Map) {
+      final nestedData = data['data'] as Map;
+      for (final key in keys) {
+        if (nestedData.containsKey(key) &&
+            nestedData[key] != null &&
+            nestedData[key].toString().isNotEmpty) {
+          return nestedData[key].toString();
+        }
+      }
+    }
+
+    // Kiểm tra trong user nếu có
+    if (data.containsKey('user') && data['user'] is Map) {
+      final nestedUser = data['user'] as Map;
+      for (final key in keys) {
+        if (nestedUser.containsKey(key) &&
+            nestedUser[key] != null &&
+            nestedUser[key].toString().isNotEmpty) {
+          return nestedUser[key].toString();
+        }
+      }
+    }
+
+    return null;
   }
 
   @override
@@ -52,50 +174,7 @@ class _MainScreenState extends State<MainScreen> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                DrawerHeader(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Colors.white,
-                        child: Icon(
-                          Icons.person,
-                          size: 35,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Xin chào,',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      FutureBuilder<Map<String, dynamic>>(
-                        future:
-                            Provider.of<AuthProvider>(context, listen: false)
-                                .getCurrentUser(),
-                        builder: (context, snapshot) {
-                          return Text(
-                            snapshot.data?['phone_number'] ?? 'Khách hàng',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                _buildDrawerHeader(context),
                 ListTile(
                   leading: const Icon(Icons.account_circle),
                   title: const Text('Thông tin tài khoản'),

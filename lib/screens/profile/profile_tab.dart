@@ -28,7 +28,10 @@ class _ProfileTabState extends State<ProfileTab> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    // Luôn tải thông tin user mỗi khi vào màn hình
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUserData(forceReload: true);
+    });
   }
 
   @override
@@ -40,11 +43,18 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   // Load user data from provider
-  Future<void> _loadUserData() async {
+  Future<void> _loadUserData({bool forceReload = false}) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userData = authProvider.userData;
 
-    if (userData.isEmpty) {
+    print('Loading user data, forceReload: $forceReload');
+    print('Current userData in provider: ${authProvider.userData}');
+
+    // Luôn tải lại dữ liệu nếu forceReload = true
+    if (forceReload) {
+      print('Forcing reload of user data from API');
+      await authProvider.getCurrentUser();
+    } else if (authProvider.userData.isEmpty) {
+      print('userData empty, loading from API');
       await authProvider.getCurrentUser();
     }
 

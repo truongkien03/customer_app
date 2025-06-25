@@ -144,6 +144,16 @@ class AuthProvider with ChangeNotifier {
 
         if (response['data'] != null) {
           _userData = response['data'];
+
+          // Lưu số điện thoại trực tiếp vào userData nếu chưa có
+          if (!_userData.containsKey('phone') &&
+              !_userData.containsKey('phone_number') &&
+              !_userData.containsKey('phoneNumber')) {
+            print('Adding phone number directly to userData: $phoneNumber');
+            _userData['phone_number'] = phoneNumber;
+          }
+
+          print('Login user data: $_userData');
         } else {
           // Nếu không có data trong response, thử lấy dữ liệu người dùng
           await getCurrentUser();
@@ -171,15 +181,39 @@ class AuthProvider with ChangeNotifier {
     try {
       final result =
           await _authService.loginWithPassword(phoneNumber, password);
+      print('Login with password response: $result');
 
-      if (!result['success']) {
+      if (result['success']) {
+        _isAuthenticated = true;
+
+        // Kiểm tra token có được lưu thành công không
+        final storage = const FlutterSecureStorage();
+        final token = await storage.read(key: 'auth_token');
+        print('Token after password login: $token');
+
+        if (result['data'] != null) {
+          _userData = result['data'];
+
+          // Lưu số điện thoại trực tiếp vào userData nếu chưa có
+          if (!_userData.containsKey('phone') &&
+              !_userData.containsKey('phone_number') &&
+              !_userData.containsKey('phoneNumber')) {
+            print(
+                'Adding phone number directly to userData in password login: $phoneNumber');
+            _userData['phone_number'] = phoneNumber;
+          }
+
+          print('Password login user data: $_userData');
+        } else {
+          // Nếu không có data trong response, thử lấy dữ liệu người dùng
+          await getCurrentUser();
+        }
+
+        return true;
+      } else {
         _setError(_formatErrorMessage(result['message']));
         return false;
       }
-
-      _isAuthenticated = true;
-      await _fetchCurrentUser();
-      return true;
     } catch (e) {
       _setError('Login failed: ${e.toString()}');
       return false;
