@@ -8,13 +8,13 @@ class ApiConstants {
   static const String loginOtp = '/login/otp';
   static const String login = '/login';
   static const String loginWithPassword =
-      '/login/password'; // Password login endpoint
+      '/login/password'; // Endpoint matches Postman
+  static const String setPassword = '/set-password'; // Set password endpoint
 
   // User profile endpoints
   static const String userProfile = '/profile';
-  static const String updateProfile = '/profile/update';
+  static const String updateProfile = '/profile';
   static const String userAvatar = '/profile/avatar';
-  static const String changePassword = '/password';
 
   // Order endpoints
   static const String orders = '/orders';

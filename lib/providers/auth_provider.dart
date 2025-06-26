@@ -4,53 +4,53 @@ import 'package:flutter/material.dart';
 import 'package:customer_app/models/user_model.dart';
 import 'package:customer_app/services/auth_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:math' as math;
+import 'package:customer_app/models/address_model.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
 
   bool _isAuthenticated = false;
   bool _isLoading = false;
-  User? _currentUser;
-  String _error = '';
+  UserModel? _currentUser;
+  String? _errorMessage;
+  String? _successMessage;
   Map<String, dynamic> _userData = {};
 
   // Getters
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
-  User? get currentUser => _currentUser;
-  String get error => _error;
-  Map<String, dynamic> get userData => _userData;
+  UserModel? get userData => _currentUser;
+  String? get errorMessage => _errorMessage;
+  String? get successMessage => _successMessage;
+  bool get isLoggedIn => _currentUser != null;
 
   // Initialize auth state
   Future<void> initAuthState() async {
     _setLoading(true);
-    print('Initializing auth state...');
+    print('=== Initializing auth state... ===');
 
     try {
+      // Kiểm tra token trực tiếp
+      final storage = const FlutterSecureStorage();
+      final token = await storage.read(key: AuthService.TOKEN_KEY);
+      print(
+          'Token from storage: ${token != null ? token.substring(0, math.min<int>(10, token.length)) : 'null'}...');
+
       final isLoggedIn = await _authService.isLoggedIn();
       print('isLoggedIn check result: $isLoggedIn');
 
       if (isLoggedIn) {
         _isAuthenticated = true;
+        print('📱 User is authenticated, fetching profile data...');
         // Thử lấy thông tin người dùng
-        final userResult = await _authService.getCurrentUser();
-
-        if (userResult['success']) {
-          _userData = userResult['data'];
-          print('User data loaded: $_userData');
-        } else {
-          print(
-              'Failed to load user data while initializing: ${userResult['message']}');
-          // Nếu không lấy được thông tin user, có thể token không hợp lệ
-          // Trong trường hợp này, nên đăng xuất
-          await logout();
-        }
+        await fetchCurrentUser();
       } else {
         _isAuthenticated = false;
-        print('User is not logged in');
+        print('❌ User is not logged in');
       }
     } catch (e) {
-      print('Error during auth initialization: $e');
+      print('❌ Error during auth initialization: $e');
       _isAuthenticated = false;
     }
 
@@ -66,13 +66,13 @@ class AuthProvider with ChangeNotifier {
       final result = await _authService.sendRegisterOtp(phoneNumber);
 
       if (!result['success']) {
-        _setError(_formatErrorMessage(result['message']));
+        _setError(result['message']);
         return false;
       }
 
       return true;
     } catch (e) {
-      _setError('Failed to send OTP: ${e.toString()}');
+      _setError('Lỗi gửi OTP: ${e.toString()}');
       return false;
     } finally {
       _setLoading(false);
@@ -88,15 +88,15 @@ class AuthProvider with ChangeNotifier {
       final result = await _authService.register(phoneNumber, otp);
 
       if (!result['success']) {
-        _setError(_formatErrorMessage(result['message']));
+        _setError(result['message']);
         return false;
       }
 
       _isAuthenticated = true;
-      await _fetchCurrentUser();
+      await fetchCurrentUser();
       return true;
     } catch (e) {
-      _setError('Registration failed: ${e.toString()}');
+      _setError('Lỗi đăng ký: ${e.toString()}');
       return false;
     } finally {
       _setLoading(false);
@@ -112,13 +112,13 @@ class AuthProvider with ChangeNotifier {
       final result = await _authService.sendLoginOtp(phoneNumber);
 
       if (!result['success']) {
-        _setError(_formatErrorMessage(result['message']));
+        _setError(result['message']);
         return false;
       }
 
       return true;
     } catch (e) {
-      _setError('Failed to send OTP: ${e.toString()}');
+      _setError('Lỗi gửi OTP: ${e.toString()}');
       return false;
     } finally {
       _setLoading(false);
@@ -131,45 +131,20 @@ class AuthProvider with ChangeNotifier {
     _clearError();
 
     try {
-      final response = await _authService.loginWithOtp(phoneNumber, otp);
-      print('Login response: $response');
-
-      if (response['success']) {
-        _isAuthenticated = true;
-
-        // Kiểm tra token có được lưu thành công không
-        final storage = const FlutterSecureStorage();
-        final token = await storage.read(key: 'auth_token');
-        print('Token after login: $token');
-
-        if (response['data'] != null) {
-          _userData = response['data'];
-
-          // Lưu số điện thoại trực tiếp vào userData nếu chưa có
-          if (!_userData.containsKey('phone') &&
-              !_userData.containsKey('phone_number') &&
-              !_userData.containsKey('phoneNumber')) {
-            print('Adding phone number directly to userData: $phoneNumber');
-            _userData['phone_number'] = phoneNumber;
-          }
-
-          print('Login user data: $_userData');
-        } else {
-          // Nếu không có data trong response, thử lấy dữ liệu người dùng
-          await getCurrentUser();
-        }
-
-        _setLoading(false);
-        return true;
-      } else {
-        _setError(response['message'] ?? 'Login failed');
-        _setLoading(false);
+      final result = await _authService.loginWithOtp(phoneNumber, otp);
+      if (!result['success']) {
+        _setError(result['message']);
         return false;
       }
+
+      _isAuthenticated = true;
+      await fetchCurrentUser();
+      return true;
     } catch (e) {
-      _setError('Login error: ${e.toString()}');
-      _setLoading(false);
+      _setError('Lỗi đăng nhập: ${e.toString()}');
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
@@ -181,41 +156,16 @@ class AuthProvider with ChangeNotifier {
     try {
       final result =
           await _authService.loginWithPassword(phoneNumber, password);
-      print('Login with password response: $result');
-
-      if (result['success']) {
-        _isAuthenticated = true;
-
-        // Kiểm tra token có được lưu thành công không
-        final storage = const FlutterSecureStorage();
-        final token = await storage.read(key: 'auth_token');
-        print('Token after password login: $token');
-
-        if (result['data'] != null) {
-          _userData = result['data'];
-
-          // Lưu số điện thoại trực tiếp vào userData nếu chưa có
-          if (!_userData.containsKey('phone') &&
-              !_userData.containsKey('phone_number') &&
-              !_userData.containsKey('phoneNumber')) {
-            print(
-                'Adding phone number directly to userData in password login: $phoneNumber');
-            _userData['phone_number'] = phoneNumber;
-          }
-
-          print('Password login user data: $_userData');
-        } else {
-          // Nếu không có data trong response, thử lấy dữ liệu người dùng
-          await getCurrentUser();
-        }
-
-        return true;
-      } else {
-        _setError(_formatErrorMessage(result['message']));
+      if (!result['success']) {
+        _setError(result['message']);
         return false;
       }
+
+      _isAuthenticated = true;
+      await fetchCurrentUser();
+      return true;
     } catch (e) {
-      _setError('Login failed: ${e.toString()}');
+      _setError('Lỗi đăng nhập: ${e.toString()}');
       return false;
     } finally {
       _setLoading(false);
@@ -223,41 +173,41 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Logout
-  Future<bool> logout() async {
+  Future<void> logout() async {
     _setLoading(true);
-    _clearError();
-
     try {
-      final result = await _authService.logout();
-
-      if (result) {
-        _isAuthenticated = false;
-        _currentUser = null;
-      } else {
-        _setError('Logout failed');
-      }
-
-      return result;
+      await _authService.logout();
+      _isAuthenticated = false;
+      _currentUser = null;
+      notifyListeners();
     } catch (e) {
-      _setError('Logout failed: ${e.toString()}');
-      return false;
+      _setError('Lỗi đăng xuất: ${e.toString()}');
     } finally {
       _setLoading(false);
     }
   }
 
   // Fetch current user data
-  Future<void> _fetchCurrentUser() async {
+  Future<bool> fetchCurrentUser() async {
+    _setLoading(true);
+    _clearError();
+
     try {
       final result = await _authService.getCurrentUser();
 
       if (result['success'] && result['data'] != null) {
-        _currentUser = User.fromJson(result['data']['user']);
+        _currentUser = UserModel.fromJson(result['data']['user']);
+        notifyListeners();
+        return true;
       } else {
-        _setError(_formatErrorMessage(result['message']));
+        _setError(result['message']);
+        return false;
       }
     } catch (e) {
-      _setError('Failed to fetch user data: ${e.toString()}');
+      _setError('Lỗi lấy thông tin người dùng: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
@@ -280,13 +230,21 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void _setError(String error) {
-    _error = error;
+  void _setError(String? error) {
+    _errorMessage = error;
+    _successMessage = null;
+    notifyListeners();
+  }
+
+  void _setSuccess(String? message) {
+    _successMessage = message;
+    _errorMessage = null;
     notifyListeners();
   }
 
   void _clearError() {
-    _error = '';
+    _errorMessage = null;
+    _successMessage = null;
     notifyListeners();
   }
 
@@ -296,60 +254,53 @@ class AuthProvider with ChangeNotifier {
       _setLoading(true);
       final response = await _authService.getCurrentUser();
 
-      // Print the response for debugging
-      print('getCurrentUser API response: $response');
+      print('Response in getCurrentUser: $response');
 
-      if (response['success']) {
-        // Kiểm tra cấu trúc data
-        if (response['data'] != null) {
-          if (response['data'] is Map<String, dynamic>) {
-            // Có thể dữ liệu người dùng nằm trong các key khác nhau
-            _userData = response['data'];
-
-            // Nếu có key 'data' lồng bên trong
-            if (_userData.containsKey('data') && _userData['data'] is Map) {
-              _userData = {
-                ..._userData,
-                ..._userData['data'] as Map<String, dynamic>
-              };
-            }
-
-            // Nếu có key 'user' lồng bên trong
-            if (_userData.containsKey('user') && _userData['user'] is Map) {
-              _userData = {
-                ..._userData,
-                ..._userData['user'] as Map<String, dynamic>
-              };
-            }
-          } else if (response['data'] is String) {
-            // Trường hợp data là JSON string
-            try {
-              _userData = jsonDecode(response['data']);
-            } catch (e) {
-              print('Error parsing user data: $e');
-              _userData = {};
-            }
-          } else {
-            print('Unexpected data type: ${response['data'].runtimeType}');
-            _userData = {};
-          }
-        } else {
-          _userData = {};
+      // Nếu response body có id, nghĩa là đây là dữ liệu user trực tiếp
+      if (response['id'] != null) {
+        try {
+          _currentUser = UserModel.fromJson(response);
+          notifyListeners();
+          return response;
+        } catch (e) {
+          print('Error parsing user data: $e');
+          _setError('Lỗi xử lý dữ liệu người dùng');
         }
-
-        print('Final user data set in provider: $_userData');
-        _printPhoneNumber(_userData);
-      } else {
-        _setError(response['message'] ?? 'Failed to load profile');
+      }
+      // Nếu response là wrapper và có data
+      else if (response['success'] && response['data'] != null) {
+        try {
+          _currentUser = UserModel.fromJson(response['data']);
+          notifyListeners();
+          return response['data'];
+        } catch (e) {
+          print('Error parsing user data: $e');
+          _setError('Lỗi xử lý dữ liệu người dùng');
+        }
+      }
+      // Nếu response là wrapper nhưng data null, thử parse response body
+      else if (response['success'] && response['data'] == null) {
+        try {
+          // Lấy response body từ AuthService
+          final responseBody = await _authService.getResponseBody();
+          if (responseBody != null) {
+            _currentUser = UserModel.fromJson(responseBody);
+            notifyListeners();
+            return responseBody;
+          }
+        } catch (e) {
+          print('Error parsing response body: $e');
+        }
       }
 
-      _setLoading(false);
-      return _userData;
+      _setError('Không thể tải thông tin người dùng');
+      return {};
     } catch (e) {
       print('Error in getCurrentUser: ${e.toString()}');
-      _setError('Failed to load profile: ${e.toString()}');
-      _setLoading(false);
+      _setError('Lỗi tải thông tin người dùng: ${e.toString()}');
       return {};
+    } finally {
+      _setLoading(false);
     }
   }
 
@@ -394,26 +345,38 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Update user profile
-  Future<bool> updateProfile(Map<String, dynamic> profileData) async {
-    _setLoading(true);
-    _clearError();
-
+  Future<bool> updateProfile({
+    String? name,
+    required double lat,
+    required double lon,
+    required String addressDesc,
+  }) async {
     try {
-      final response = await _authService.updateProfile(profileData);
+      // Đảm bảo có số điện thoại từ currentUser
+      if (_currentUser == null || _currentUser!.phoneNumber.isEmpty) {
+        throw 'Không tìm thấy thông tin người dùng';
+      }
 
-      if (response['success']) {
-        _userData = response['data'];
-        _setLoading(false);
+      final result = await _authService.updateProfile({
+        if (name != null && name.isNotEmpty) 'name': name,
+        'phone_number':
+            _currentUser!.phoneNumber, // Thêm số điện thoại vào request
+        'address': {
+          'lat': lat,
+          'lon': lon,
+          'desc': addressDesc,
+        },
+      });
+
+      if (result['success'] && result['data'] != null) {
+        _currentUser = UserModel.fromJson(result['data']);
+        notifyListeners();
         return true;
       } else {
-        _setError(response['message'] ?? 'Failed to update profile');
-        _setLoading(false);
-        return false;
+        throw result['message'] ?? 'Không thể cập nhật thông tin';
       }
     } catch (e) {
-      _setError('Failed to update profile: ${e.toString()}');
-      _setLoading(false);
-      return false;
+      throw e.toString();
     }
   }
 
@@ -428,6 +391,7 @@ class AuthProvider with ChangeNotifier {
       if (response['success']) {
         _userData = response['data'];
         _setLoading(false);
+        await fetchCurrentUser();
         return true;
       } else {
         _setError(response['message'] ?? 'Failed to update avatar');
@@ -441,28 +405,27 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Change password
-  Future<bool> changePassword(
-      String currentPassword, String newPassword) async {
+  // Set password
+  Future<bool> setPassword(String password, String passwordConfirmation) async {
     _setLoading(true);
     _clearError();
 
     try {
-      final response =
-          await _authService.changePassword(currentPassword, newPassword);
+      final result =
+          await _authService.setPassword(password, passwordConfirmation);
 
-      if (response['success']) {
-        _setLoading(false);
-        return true;
-      } else {
-        _setError(response['message'] ?? 'Failed to change password');
-        _setLoading(false);
+      if (!result['success']) {
+        _setError(result['message']);
         return false;
       }
+
+      _setSuccess(result['message'] ?? 'Password set successfully');
+      return true;
     } catch (e) {
-      _setError('Failed to change password: ${e.toString()}');
-      _setLoading(false);
+      _setError('Error setting password: ${e.toString()}');
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 }

@@ -87,8 +87,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       _startResendTimer();
     } else if (mounted) {
       Fluttertoast.showToast(
-        msg: authProvider.error.isNotEmpty
-            ? authProvider.error
+        msg: authProvider.errorMessage != null
+            ? authProvider.errorMessage!
             : 'Failed to send OTP',
         backgroundColor: Colors.red,
       );
@@ -116,9 +116,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         if (success) {
           // Kiểm tra token và dữ liệu người dùng
           final storage = const FlutterSecureStorage();
-          final token = await storage.read(key: 'auth_token');
+          final token = await storage.read(key: 'access_token');
           print('Token after successful login: $token');
-          print('User data: ${authProvider.userData}');
         }
       } else {
         success = await authProvider.register(
@@ -136,10 +135,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         // Navigate to main app screen (replace current stack)
         Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
       } else if (mounted) {
-        print('Verification failed: ${authProvider.error}');
+        print('Verification failed: ${authProvider.errorMessage}');
         Fluttertoast.showToast(
-          msg: authProvider.error.isNotEmpty
-              ? authProvider.error
+          msg: authProvider.errorMessage != null
+              ? authProvider.errorMessage!
               : 'Verification failed',
           backgroundColor: Colors.red,
         );

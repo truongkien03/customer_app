@@ -30,12 +30,12 @@ class _MainScreenState extends State<MainScreen> {
       _selectedIndex = index;
     });
 
-    // Khi chuyển đến tab profile, tải lại thông tin user
+    // Chỉ tải lại dữ liệu user nếu tab profile được chọn và chưa có dữ liệu
     if (index == 4) {
-      // Tab profile được chọn
-      print('Profile tab selected, refreshing user data');
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      authProvider.getCurrentUser();
+      if (authProvider.userData == null) {
+        authProvider.getCurrentUser();
+      }
     }
   }
 
@@ -76,19 +76,13 @@ class _MainScreenState extends State<MainScreen> {
           const SizedBox(height: 5),
           Consumer<AuthProvider>(
             builder: (context, authProvider, _) {
-              // Cố gắng lấy thông tin từ các key phổ biến
-              final name = _getValueFromKeys(authProvider.userData,
-                  ['name', 'fullName', 'full_name', 'username']);
-
-              final phone = _getValueFromKeys(authProvider.userData,
-                  ['phone', 'phone_number', 'phoneNumber', 'mobile']);
-
+              final user = authProvider.userData;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (name != null && name.isNotEmpty)
+                  if (user?.name != null && user!.name!.isNotEmpty)
                     Text(
-                      name,
+                      user.name!,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -96,9 +90,9 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                  if (phone != null && phone.isNotEmpty)
+                  if (user?.phoneNumber != null)
                     Text(
-                      phone,
+                      user!.phoneNumber,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -121,44 +115,6 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
     );
-  }
-
-  // Helper để lấy giá trị từ danh sách các key khả dụng
-  String? _getValueFromKeys(Map<String, dynamic> data, List<String> keys) {
-    // Kiểm tra trực tiếp
-    for (final key in keys) {
-      if (data.containsKey(key) &&
-          data[key] != null &&
-          data[key].toString().isNotEmpty) {
-        return data[key].toString();
-      }
-    }
-
-    // Kiểm tra trong data nếu có
-    if (data.containsKey('data') && data['data'] is Map) {
-      final nestedData = data['data'] as Map;
-      for (final key in keys) {
-        if (nestedData.containsKey(key) &&
-            nestedData[key] != null &&
-            nestedData[key].toString().isNotEmpty) {
-          return nestedData[key].toString();
-        }
-      }
-    }
-
-    // Kiểm tra trong user nếu có
-    if (data.containsKey('user') && data['user'] is Map) {
-      final nestedUser = data['user'] as Map;
-      for (final key in keys) {
-        if (nestedUser.containsKey(key) &&
-            nestedUser[key] != null &&
-            nestedUser[key].toString().isNotEmpty) {
-          return nestedUser[key].toString();
-        }
-      }
-    }
-
-    return null;
   }
 
   @override

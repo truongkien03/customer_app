@@ -1,39 +1,54 @@
-class User {
-  final String? id;
-  final String phoneNumber;
-  final String? email;
-  final String? name;
-  final String? avatar;
-  final bool hasPassword;
+import 'address_model.dart';
 
-  User({
-    this.id,
-    required this.phoneNumber,
-    this.email,
+class UserModel {
+  final String? name; // Tùy chọn, tối đa 255 ký tự
+  final String phoneNumber; // Tùy chọn, tối đa 255 ký tự
+  final AddressModel address; // Bắt buộc
+  final String? avatar; // Tùy chọn, URL avatar
+
+  UserModel({
     this.name,
+    required this.phoneNumber,
+    required this.address,
     this.avatar,
-    this.hasPassword = false,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      id: json['id'],
-      phoneNumber: json['phone_number'] ?? '',
-      email: json['email'],
-      name: json['name'],
-      avatar: json['avatar'],
-      hasPassword: json['has_password'] ?? false,
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    String? avatarUrl = json['avatar'] as String?;
+    // Xử lý URL avatar an toàn
+    if (avatarUrl != null && avatarUrl.length > 500) {
+      print('Avatar URL quá dài, có thể gây lỗi: ${avatarUrl.length} ký tự');
+      avatarUrl = null; // Bỏ qua URL nếu quá dài
+    }
+
+    return UserModel(
+      name: json['name'] as String?,
+      phoneNumber: json['phone_number'] as String,
+      address: AddressModel.fromJson(json['address'] as Map<String, dynamic>),
+      avatar: avatarUrl,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'phone_number': phoneNumber,
-      'email': email,
       'name': name,
+      'phone_number': phoneNumber,
+      'address': address.toJson(),
       'avatar': avatar,
-      'has_password': hasPassword,
     };
+  }
+
+  UserModel copyWith({
+    String? name,
+    String? phoneNumber,
+    AddressModel? address,
+    String? avatar,
+  }) {
+    return UserModel(
+      name: name ?? this.name,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      address: address ?? this.address,
+      avatar: avatar ?? this.avatar,
+    );
   }
 }

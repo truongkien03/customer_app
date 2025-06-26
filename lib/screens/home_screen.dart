@@ -38,16 +38,11 @@ class HomeScreen extends StatelessWidget {
               );
 
               if (shouldLogout == true) {
-                final success = await authProvider.logout();
+                await authProvider.logout();
 
-                if (success && context.mounted) {
+                if (context.mounted) {
                   Navigator.pushNamedAndRemoveUntil(
                       context, '/login', (route) => false);
-                } else if (context.mounted) {
-                  Fluttertoast.showToast(
-                    msg: 'Failed to logout',
-                    backgroundColor: Colors.red,
-                  );
                 }
               }
             },
@@ -61,7 +56,7 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Welcome, ${authProvider.currentUser?.name ?? 'User'}!',
+                'Welcome, ${authProvider.userData?.name ?? 'User'}!',
                 style: const TextStyle(
                   fontSize: 24.0,
                   fontWeight: FontWeight.bold,
@@ -69,14 +64,7 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16.0),
               Text(
-                'Phone Number: ${authProvider.currentUser?.phoneNumber ?? 'Not available'}',
-                style: const TextStyle(
-                  fontSize: 16.0,
-                ),
-              ),
-              const SizedBox(height: 8.0),
-              Text(
-                'Email: ${authProvider.currentUser?.email ?? 'Not available'}',
+                'Phone Number: ${authProvider.userData?.phoneNumber ?? 'Not available'}',
                 style: const TextStyle(
                   fontSize: 16.0,
                 ),
@@ -113,7 +101,7 @@ class HomeScreen extends StatelessWidget {
                 CustomButton(
                   text: 'Refresh Profile',
                   onPressed: () async {
-                    await authProvider.initAuthState();
+                    await authProvider.fetchCurrentUser();
                   },
                 ),
             ],

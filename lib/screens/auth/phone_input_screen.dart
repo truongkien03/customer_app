@@ -4,7 +4,6 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:provider/provider.dart';
 import 'package:customer_app/providers/auth_provider.dart';
 import 'package:customer_app/screens/auth/otp_verification_screen.dart';
-import 'package:customer_app/screens/auth/password_login_screen.dart';
 import 'package:customer_app/utils/validators.dart';
 import 'package:customer_app/utils/logger.dart';
 import 'package:customer_app/widgets/custom_button.dart';
@@ -25,199 +24,228 @@ class PhoneInputScreen extends StatefulWidget {
 class _PhoneInputScreenState extends State<PhoneInputScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  bool _hasPassword = false; // Will be checked during OTP request
-  String _debugInfo = '';
+  final _passwordController = TextEditingController();
   bool _isSubmitting = false;
+  bool _isPasswordLogin = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
     _phoneController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _handleSubmit() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isSubmitting = true;
-      });
+    if (!_formKey.currentState!.validate()) return;
 
-      print(
-          'Submitting phone number: ${_phoneController.text} for ${widget.isLogin ? 'login' : 'registration'}');
+    setState(() => _isSubmitting = true);
 
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      bool success = false;
+    try {
+      final authProvider = context.read<AuthProvider>();
+      bool success;
 
-      if (widget.isLogin) {
-        success = await authProvider.sendLoginOtp(_phoneController.text);
+      if (_isPasswordLogin) {
+        success = await authProvider.loginWithPassword(
+          _phoneController.text,
+          _passwordController.text,
+        );
       } else {
-        success = await authProvider.sendRegisterOtp(_phoneController.text);
+        if (widget.isLogin) {
+          success = await authProvider.sendLoginOtp(_phoneController.text);
+        } else {
+          success = await authProvider.sendRegisterOtp(_phoneController.text);
+        }
       }
 
-      setState(() {
-        _isSubmitting = false;
-      });
+      if (!mounted) return;
 
-      if (success && mounted) {
-        print('OTP sent successfully');
-        // Navigate to OTP verification screen
-        Navigator.pushNamed(
-          context,
-          '/otp',
-          arguments: {
-            'phoneNumber': _phoneController.text,
-            'isLogin': widget.isLogin,
-          },
+      if (success) {
+        if (_isPasswordLogin) {
+          // Đăng nhập thành công, chuyển đến màn hình chính
+          Navigator.of(context).pushReplacementNamed('/home');
+        } else {
+          // Gửi OTP thành công, chuyển đến màn hình xác thực OTP
+          Navigator.pushNamed(
+            context,
+            '/otp_verification',
+            arguments: {
+              'phoneNumber': _phoneController.text,
+              'isLogin': widget.isLogin,
+            },
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              authProvider.errorMessage ?? 'Có lỗi xảy ra. Vui lòng thử lại.',
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
-      } else if (mounted) {
-        print('Failed to send OTP: ${authProvider.error}');
-        // Show error toast
-        Fluttertoast.showToast(
-          msg: authProvider.error.isNotEmpty
-              ? authProvider.error
-              : 'Failed to send OTP',
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Có lỗi xảy ra: ${e.toString()}'),
           backgroundColor: Colors.red,
-        );
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
       }
     }
   }
 
-  void _navigateToOtpScreen(String phoneNumber) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => OtpVerificationScreen(
-          phoneNumber: phoneNumber,
-          isLogin: widget.isLogin,
-        ),
-      ),
-    );
-  }
-
-  void _showPasswordOption(String phoneNumber) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Login Options'),
-          content: const Text(
-              'You have a password set. Would you like to log in with your password instead?'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Use OTP'),
-              onPressed: () {
-                Navigator.pop(context);
-                _navigateToOtpScreen(phoneNumber);
-              },
-            ),
-            TextButton(
-              child: const Text('Use Password'),
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PasswordLoginScreen(
-                      phoneNumber: phoneNumber,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isLogin ? 'Login' : 'Register'),
+        title: Text(widget.isLogin ? 'Đăng nhập' : 'Đăng ký'),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.isLogin ? 'Welcome Back!' : 'Create Your Account',
-                  style: const TextStyle(
-                    fontSize: 24.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12.0),
-                Text(
-                  widget.isLogin
-                      ? 'Please enter your phone number to log in'
-                      : 'Please enter your phone number to create an account',
-                  style: const TextStyle(
-                    fontSize: 16.0,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 32.0),
-                CustomTextField(
-                  controller: _phoneController,
-                  labelText: 'Phone Number',
-                  hintText: '+84...',
-                  keyboardType: TextInputType.phone,
-                  validator: Validators.validatePhoneNumber,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9\+]')),
-                  ],
-                  prefixIcon: const Icon(Icons.phone),
-                ),
-                const SizedBox(height: 24.0),
-                CustomButton(
-                  text: 'Send OTP',
-                  isLoading: authProvider.isLoading,
-                  onPressed: _handleSubmit,
-                ),
-                if (widget.isLogin)
-                  Center(
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const PhoneInputScreen(isLogin: false),
-                          ),
-                        );
-                      },
-                      child: const Text('Don\'t have an account? Register'),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.isLogin ? 'Chào mừng trở lại!' : 'Tạo tài khoản mới',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
-                  ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.isLogin
+                    ? 'Đăng nhập để tiếp tục'
+                    : 'Đăng ký để bắt đầu sử dụng ứng dụng',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+              ),
+              const SizedBox(height: 32),
+              CustomTextField(
+                controller: _phoneController,
+                labelText: 'Số điện thoại',
+                hintText: 'Nhập số điện thoại',
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Vui lòng nhập số điện thoại';
+                  }
+                  if (!Validators.isValidPhoneNumber(value)) {
+                    return 'Số điện thoại không hợp lệ';
+                  }
+                  return null;
+                },
+                prefixIcon: const Icon(Icons.phone),
+              ),
+              if (widget.isLogin) ...[
                 const SizedBox(height: 16.0),
-                if (_debugInfo.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(top: 20),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Debug Info:',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordLogin = !_isPasswordLogin;
+                          });
+                        },
+                        icon: Icon(
+                            _isPasswordLogin ? Icons.message : Icons.password),
+                        label: Text(_isPasswordLogin
+                            ? 'Đăng nhập bằng OTP'
+                            : 'Đăng nhập bằng mật khẩu'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Theme.of(context).primaryColor,
                         ),
-                        const SizedBox(height: 8),
-                        Text(_debugInfo),
-                      ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (_isPasswordLogin) ...[
+                  const SizedBox(height: 16.0),
+                  CustomTextField(
+                    controller: _passwordController,
+                    labelText: 'Mật khẩu',
+                    hintText: 'Nhập mật khẩu',
+                    obscureText: _obscurePassword,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Vui lòng nhập mật khẩu';
+                      }
+                      if (value.length < 6) {
+                        return 'Mật khẩu phải có ít nhất 6 ký tự';
+                      }
+                      return null;
+                    },
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
                     ),
                   ),
+                ],
               ],
-            ),
+              const SizedBox(height: 24.0),
+              CustomButton(
+                text: _isSubmitting
+                    ? 'Đang xử lý...'
+                    : (widget.isLogin ? 'Đăng nhập' : 'Đăng ký'),
+                onPressed: () {
+                  if (!_isSubmitting) {
+                    _handleSubmit();
+                  }
+                },
+                isLoading: _isSubmitting,
+              ),
+              if (widget.isLogin) ...[
+                const SizedBox(height: 16.0),
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const PhoneInputScreen(isLogin: false),
+                        ),
+                      );
+                    },
+                    child: const Text('Chưa có tài khoản? Đăng ký'),
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 16.0),
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const PhoneInputScreen(isLogin: true),
+                        ),
+                      );
+                    },
+                    child: const Text('Đã có tài khoản? Đăng nhập'),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
