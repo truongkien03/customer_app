@@ -156,14 +156,16 @@ class AuthProvider with ChangeNotifier {
     try {
       final result =
           await _authService.loginWithPassword(phoneNumber, password);
-      if (!result['success']) {
-        _setError(result['message']);
+
+      if (result['success']) {
+        _isAuthenticated = true;
+        _setSuccess('Đăng nhập thành công');
+        await fetchCurrentUser();
+        return true;
+      } else {
+        _setError(result['message'] ?? 'Đăng nhập thất bại');
         return false;
       }
-
-      _isAuthenticated = true;
-      await fetchCurrentUser();
-      return true;
     } catch (e) {
       _setError('Lỗi đăng nhập: ${e.toString()}');
       return false;
@@ -383,25 +385,44 @@ class AuthProvider with ChangeNotifier {
   // Update user avatar
   Future<bool> updateAvatar(File imageFile) async {
     _setLoading(true);
-    _clearError();
 
     try {
       final response = await _authService.updateAvatar(imageFile);
 
       if (response['success']) {
-        _userData = response['data'];
-        _setLoading(false);
-        await fetchCurrentUser();
+        // Refresh user data ngay sau khi upload thành công
+        await getCurrentUser(); // Gọi API lấy thông tin user mới
+        notifyListeners(); // Thông báo UI cập nhật
         return true;
-      } else {
-        _setError(response['message'] ?? 'Failed to update avatar');
-        _setLoading(false);
-        return false;
       }
-    } catch (e) {
-      _setError('Failed to update avatar: ${e.toString()}');
-      _setLoading(false);
       return false;
+    } catch (e) {
+      print('Error updating avatar: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Update user avatar with URL
+  Future<bool> updateAvatarWithUrl(String avatarUrl) async {
+    _setLoading(true);
+
+    try {
+      final response = await _authService.updateAvatarWithUrl(avatarUrl);
+
+      if (response['success']) {
+        // Refresh user data ngay sau khi upload thành công
+        await getCurrentUser(); // Gọi API lấy thông tin user mới
+        notifyListeners(); // Thông báo UI cập nhật
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error updating avatar with URL: $e');
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
 

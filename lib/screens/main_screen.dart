@@ -22,7 +22,7 @@ class _MainScreenState extends State<MainScreen> {
     const OrdersTab(),
     const CreateOrderTab(),
     const NotificationsTab(),
-    const ProfileTab(),
+    ProfileTab(),
   ];
 
   void _onItemTapped(int index) {

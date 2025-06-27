@@ -342,7 +342,6 @@ class AuthService {
     try {
       print('Attempting to login with password for phone: $phoneNumber');
 
-      // Format phone number to international format
       final formattedPhoneNumber =
           Validators.formatPhoneNumberForApi(phoneNumber);
       print('Formatted phone number: $formattedPhoneNumber');
@@ -359,23 +358,31 @@ class AuthService {
         }),
       );
 
-      print('Login with password response status: ${response.statusCode}');
-      print('Login with password response body: ${response.body}');
+      print('Login response status: ${response.statusCode}');
+      print('Login response body: ${response.body}');
 
-      final result = processResponse(response);
+      final responseData = jsonDecode(response.body);
 
-      if (result['success']) {
-        // Lưu token
-        if (result['data'] != null && result['data']['token'] != null) {
-          final token = result['data']['token'] as String;
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        // Xử lý token từ response data
+        if (responseData['data'] != null &&
+            responseData['data']['accessToken'] != null) {
+          final token = responseData['data']['accessToken'] as String;
           await saveToken(token);
           print('Token saved successfully');
-        } else {
-          print('Warning: No token received in successful login response');
         }
+
+        return {
+          'success': true,
+          'data': responseData['data'],
+          'message': responseData['message']
+        };
       }
 
-      return result;
+      return {
+        'success': false,
+        'message': responseData['message'] ?? 'Đăng nhập thất bại'
+      };
     } catch (e) {
       print('Error in loginWithPassword: ${e.toString()}');
       return {'success': false, 'message': 'Lỗi đăng nhập: ${e.toString()}'};
@@ -439,9 +446,62 @@ class AuthService {
     }
   }
 
-  // Cập nhật avatar
+  // Cập nhật avatar bằng URL
+  Future<Map<String, dynamic>> updateAvatarWithUrl(String avatarUrl) async {
+    try {
+      // Kiểm tra độ dài URL
+      if (avatarUrl.length > 2048) {
+        return {
+          'success': false,
+          'message': 'URL ảnh quá dài (tối đa 2048 ký tự)'
+        };
+      }
+
+      final response = await http.post(
+          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.userAvatar}'),
+          headers: await getHeaders(),
+          body: jsonEncode({'avatar': avatarUrl}));
+
+      print('Update avatar URL response status: ${response.statusCode}');
+      print('Update avatar URL response body: ${response.body}');
+
+      // Xử lý response thành công
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final responseData = jsonDecode(response.body);
+        return {
+          'success': true,
+          'data': responseData, // Trả về toàn bộ response data
+          'message': 'Cập nhật ảnh đại diện thành công'
+        };
+      }
+
+      // Xử lý response lỗi
+      return {
+        'success': false,
+        'message': 'Lỗi cập nhật ảnh đại diện: ${response.statusCode}'
+      };
+    } catch (e) {
+      print('Error updating avatar URL: $e');
+      return {
+        'success': false,
+        'message': 'Lỗi cập nhật avatar: ${e.toString()}'
+      };
+    }
+  }
+
+  // Cập nhật avatar bằng file
   Future<Map<String, dynamic>> updateAvatar(File imageFile) async {
     try {
+      // Kiểm tra kích thước file
+      final fileSize = await imageFile.length();
+      if (fileSize > 2 * 1024 * 1024) {
+        // 2MB
+        return {
+          'success': false,
+          'message': 'Kích thước ảnh không được vượt quá 2MB'
+        };
+      }
+
       String fileName = imageFile.path.split('/').last;
       var request = http.MultipartRequest('POST',
           Uri.parse('${ApiConstants.baseUrl}${ApiConstants.userAvatar}'));
@@ -450,17 +510,22 @@ class AuthService {
       final headers = await getHeaders();
       request.headers.addAll(headers);
 
-      // Add file
+      // Add file với key là 'avatar' theo yêu cầu API
       var pic = await http.MultipartFile.fromPath('avatar', imageFile.path,
           filename: fileName);
       request.files.add(pic);
 
+      print('Sending avatar file request...');
       // Send request
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
 
+      print('Update avatar file response status: ${response.statusCode}');
+      print('Update avatar file response body: ${response.body}');
+
       return processResponse(response);
     } catch (e) {
+      print('Error updating avatar file: $e');
       return {
         'success': false,
         'message': 'Lỗi cập nhật avatar: ${e.toString()}'
