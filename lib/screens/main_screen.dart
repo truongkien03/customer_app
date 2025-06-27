@@ -126,49 +126,95 @@ class _MainScreenState extends State<MainScreen> {
           title: const Text('Customer App'),
         ),
         drawer: Drawer(
-          child: SafeArea(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _buildDrawerHeader(context),
-                ListTile(
-                  leading: const Icon(Icons.account_circle),
-                  title: const Text('Thông tin tài khoản'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _selectedIndex = 4;
-                    });
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.history),
-                  title: const Text('Lịch sử đơn hàng'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _selectedIndex = 1;
-                    });
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.settings),
-                  title: const Text('Cài đặt'),
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.red),
-                  title: const Text(
-                    'Đăng xuất',
-                    style: TextStyle(color: Colors.red),
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              Container(
+                color: Colors.deepPurple,
+                padding: const EdgeInsets.all(16),
+                child: SafeArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Consumer<AuthProvider>(
+                        builder: (context, authProvider, _) {
+                          final user = authProvider.userData;
+                          return CircleAvatar(
+                            radius: 30,
+                            backgroundColor: Colors.white,
+                            backgroundImage: user?.avatar != null
+                                ? NetworkImage(
+                                    '${user!.avatar}?v=${DateTime.now().millisecondsSinceEpoch}')
+                                : null,
+                            child: user?.avatar == null
+                                ? const Icon(Icons.person,
+                                    size: 35, color: Colors.grey)
+                                : null,
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Xin chào,',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      Consumer<AuthProvider>(
+                        builder: (context, authProvider, _) {
+                          return Text(
+                            authProvider.userData?.name ?? '',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                  onTap: _handleLogout,
                 ),
-              ],
-            ),
+              ),
+              ListTile(
+                leading:
+                    const Icon(Icons.person_outline, color: Colors.black87),
+                title: const Text('Thông tin tài khoản'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _selectedIndex = 4;
+                  });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history, color: Colors.black87),
+                title: const Text('Lịch sử đơn hàng'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _selectedIndex = 1;
+                  });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings, color: Colors.black87),
+                title: const Text('Cài đặt'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text(
+                  'Đăng xuất',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: _handleLogout,
+              ),
+            ],
           ),
         ),
         body: IndexedStack(
