@@ -30,11 +30,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.2
+  flutter_map: ^6.1.0 # For displaying OSM maps
+  latlong2: ^0.9.0 # For handling latitude and longitude
+  flutter_map_location_marker: ^8.0.8 # For showing current location marker
+  geolocator: ^11.0.0 # For getting current location
+  geocoding: ^2.2.0 # For converting between addresses and coordinates
   http: ^1.2.0
   flutter_secure_storage: ^9.0.0
   provider: ^6.1.1

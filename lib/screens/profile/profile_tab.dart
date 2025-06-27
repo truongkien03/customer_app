@@ -9,7 +9,9 @@ import 'package:customer_app/widgets/custom_button.dart';
 import 'package:customer_app/widgets/custom_text_field.dart';
 import 'package:customer_app/screens/profile/set_password_screen.dart';
 import 'package:customer_app/models/user_model.dart';
+import 'package:customer_app/models/address_model.dart';
 import 'package:customer_app/utils/validators.dart';
+import 'package:customer_app/widgets/address_picker.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({Key? key}) : super(key: key);
@@ -228,9 +230,7 @@ class ProfileForm extends StatefulWidget {
 class _ProfileFormState extends State<ProfileForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _latController = TextEditingController();
-  final _lonController = TextEditingController();
-  final _addressDescController = TextEditingController();
+  AddressModel? _address;
   bool _isLoading = false;
 
   @override
@@ -244,24 +244,27 @@ class _ProfileFormState extends State<ProfileForm> {
     if (user != null) {
       _nameController.text = user.name ?? '';
       if (user.address != null) {
-        _latController.text = user.address!.lat.toString();
-        _lonController.text = user.address!.lon.toString();
-        _addressDescController.text = user.address!.desc;
+        _address = user.address;
       }
     }
   }
 
   Future<void> _updateProfile() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate() || _address == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn địa chỉ')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
       await context.read<AuthProvider>().updateProfile(
             name: _nameController.text.trim(),
-            lat: double.parse(_latController.text),
-            lon: double.parse(_lonController.text),
-            addressDesc: _addressDescController.text.trim(),
+            lat: _address!.lat,
+            lon: _address!.lon,
+            addressDesc: _address!.desc,
           );
 
       if (mounted) {
@@ -307,31 +310,35 @@ class _ProfileFormState extends State<ProfileForm> {
             ),
           ),
           const SizedBox(height: 16),
-          CustomTextField(
-            controller: _latController,
-            labelText: 'Vĩ độ',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            validator: (value) => Validators.validateLatitude(value),
-          ),
-          const SizedBox(height: 16),
-          CustomTextField(
-            controller: _lonController,
-            labelText: 'Kinh độ',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            validator: (value) => Validators.validateLongitude(value),
-          ),
-          const SizedBox(height: 16),
-          CustomTextField(
-            controller: _addressDescController,
-            labelText: 'Địa chỉ chi tiết',
-            validator: (value) => Validators.validateRequired(value, 'Địa chỉ'),
-            maxLines: 3,
+          AddressPicker(
+            label: 'Địa chỉ',
+            hint: 'Chọn địa chỉ của bạn',
+            address: _address,
+            onAddressSelected: (address) {
+              setState(() {
+                _address = address;
+              });
+            },
           ),
           const SizedBox(height: 24),
           CustomButton(
             text: 'Cập nhật thông tin',
             onPressed: _isLoading ? () {} : () => _updateProfile(),
             isLoading: _isLoading,
+          ),
+          const SizedBox(height: 16),
+          CustomButton(
+            text: 'Đặt mật khẩu',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SetPasswordScreen(),
+                ),
+              );
+            },
+            backgroundColor: Colors.deepPurple[100],
+            textColor: Colors.deepPurple,
           ),
         ],
       ),
@@ -341,9 +348,6 @@ class _ProfileFormState extends State<ProfileForm> {
   @override
   void dispose() {
     _nameController.dispose();
-    _latController.dispose();
-    _lonController.dispose();
-    _addressDescController.dispose();
     super.dispose();
   }
 }
