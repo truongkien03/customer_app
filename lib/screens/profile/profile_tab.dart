@@ -1,8 +1,6 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:customer_app/providers/auth_provider.dart';
 import 'package:customer_app/widgets/custom_button.dart';
@@ -25,6 +23,23 @@ class _ProfileTabState extends State<ProfileTab> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Tự động load dữ liệu người dùng khi vào màn hình
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUserData();
+    });
+  }
+
+  Future<void> _loadUserData() async {
+    final authProvider = context.read<AuthProvider>();
+    if (authProvider.userData == null && authProvider.isAuthenticated) {
+      print('Loading user data...');
+      await authProvider.fetchCurrentUser();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
@@ -38,13 +53,31 @@ class _ProfileTabState extends State<ProfileTab> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Không thể tải thông tin người dùng'),
+                Icon(
+                  Icons.person_off_outlined,
+                  size: 64,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Không thể tải thông tin người dùng',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
                 if (authProvider.errorMessage != null)
-                  Text(authProvider.errorMessage!,
-                      style: const TextStyle(color: Colors.red)),
-                ElevatedButton(
-                  onPressed: () => authProvider.getCurrentUser(),
-                  child: const Text('Thử lại'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(
+                      authProvider.errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () => _loadUserData(),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Thử lại'),
                 ),
               ],
             ),
@@ -243,9 +276,7 @@ class _ProfileFormState extends State<ProfileForm> {
     final user = context.read<AuthProvider>().userData;
     if (user != null) {
       _nameController.text = user.name ?? '';
-      if (user.address != null) {
-        _address = user.address;
-      }
+      _address = user.address;
     }
   }
 
@@ -287,8 +318,6 @@ class _ProfileFormState extends State<ProfileForm> {
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthProvider>().userData!;
-
     return Form(
       key: _formKey,
       child: Column(

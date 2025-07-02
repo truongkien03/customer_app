@@ -101,47 +101,92 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         _isSubmitting = true;
       });
 
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      bool success;
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        bool success;
 
-      print(
-          'Verifying OTP for ${widget.phoneNumber}, isLogin=${widget.isLogin}');
+        print(
+            'Verifying OTP for ${widget.phoneNumber}, isLogin=${widget.isLogin}');
 
-      if (widget.isLogin) {
-        success = await authProvider.loginWithOtp(
-            widget.phoneNumber, _otpController.text);
+        if (widget.isLogin) {
+          success = await authProvider.loginWithOtp(
+              widget.phoneNumber, _otpController.text);
 
-        print('Login result: $success');
+          print('Login result: $success');
 
-        if (success) {
-          // Kiểm tra token và dữ liệu người dùng
-          final storage = const FlutterSecureStorage();
-          final token = await storage.read(key: 'access_token');
-          print('Token after successful login: $token');
+          if (success) {
+            // Kiểm tra token và dữ liệu người dùng
+            final storage = const FlutterSecureStorage();
+            final token = await storage.read(key: 'access_token');
+            print('Token after successful login: $token');
+          }
+        } else {
+          success = await authProvider.register(
+              widget.phoneNumber, _otpController.text);
+
+          print('Registration result: $success');
         }
-      } else {
-        success = await authProvider.register(
-            widget.phoneNumber, _otpController.text);
 
-        print('Registration result: $success');
-      }
+        if (success && mounted) {
+          print('Navigating to home screen after successful verification');
+          // Navigate to main app screen (replace current stack)
+          Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+        } else if (mounted) {
+          print('Verification failed: ${authProvider.errorMessage}');
 
-      setState(() {
-        _isSubmitting = false;
-      });
+          // Hiển thị lỗi chi tiết
+          String errorMessage =
+              authProvider.errorMessage ?? 'Verification failed';
 
-      if (success && mounted) {
-        print('Navigating to home screen after successful verification');
-        // Navigate to main app screen (replace current stack)
-        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
-      } else if (mounted) {
-        print('Verification failed: ${authProvider.errorMessage}');
-        Fluttertoast.showToast(
-          msg: authProvider.errorMessage != null
-              ? authProvider.errorMessage!
-              : 'Verification failed',
-          backgroundColor: Colors.red,
-        );
+          // Xóa OTP nếu sai
+          _otpController.clear();
+
+          // Hiển thị dialog lỗi thay vì toast để rõ ràng hơn
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Xác thực thất bại'),
+              content: Text(errorMessage),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+
+          // Vẫn hiển thị toast để nhất quán
+          Fluttertoast.showToast(
+            msg: errorMessage,
+            backgroundColor: Colors.red,
+            toastLength: Toast.LENGTH_LONG,
+          );
+        }
+      } catch (e) {
+        print('Exception during OTP verification: $e');
+        if (mounted) {
+          _otpController.clear();
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Lỗi'),
+              content: Text('Có lỗi xảy ra: ${e.toString()}'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
       }
     }
   }

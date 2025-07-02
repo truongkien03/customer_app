@@ -3,13 +3,13 @@ class ApiConstants {
   static const String baseUrl = 'http://10.0.2.2:8000/api';
 
   // Authentication endpoints
-  static const String registerOtp = '/register/otp';
-  static const String register = '/register';
-  static const String loginOtp = '/login/otp';
-  static const String login = '/login';
+  static const String registerOtp = '/register/otp'; // Gửi OTP đăng ký
+  static const String register = '/register'; // Xác nhận đăng ký với OTP
+  static const String loginOtp = '/login/otp'; // Gửi OTP đăng nhập
+  static const String login = '/login'; // Xác nhận đăng nhập với OTP
   static const String loginWithPassword =
-      '/login/password'; // Endpoint matches Postman
-  static const String setPassword = '/set-password'; // Set password endpoint
+      '/login/password'; // Đăng nhập bằng mật khẩu
+  static const String setPassword = '/set-password'; // Thiết lập mật khẩu
 
   // User profile endpoints
   static const String userProfile = '/profile';

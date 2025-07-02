@@ -33,8 +33,10 @@ class _MainScreenState extends State<MainScreen> {
     // Chỉ tải lại dữ liệu user nếu tab profile được chọn và chưa có dữ liệu
     if (index == 4) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.userData == null) {
-        authProvider.getCurrentUser();
+      print('Switching to profile tab. User data: ${authProvider.userData}');
+      if (authProvider.userData == null && authProvider.isAuthenticated) {
+        print('Loading user data from MainScreen...');
+        authProvider.fetchCurrentUser();
       }
     }
   }

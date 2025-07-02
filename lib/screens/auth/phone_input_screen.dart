@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:provider/provider.dart';
 import 'package:customer_app/providers/auth_provider.dart';
-import 'package:customer_app/screens/auth/otp_verification_screen.dart';
 import 'package:customer_app/utils/validators.dart';
-import 'package:customer_app/utils/logger.dart';
 import 'package:customer_app/widgets/custom_button.dart';
 import 'package:customer_app/widgets/custom_text_field.dart';
 
@@ -68,7 +65,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           // Gửi OTP thành công, chuyển đến màn hình xác thực OTP
           Navigator.pushNamed(
             context,
-            '/otp_verification',
+            '/otp',
             arguments: {
               'phoneNumber': _phoneController.text,
               'isLogin': widget.isLogin,
@@ -100,11 +97,24 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
     }
   }
 
+  String _getButtonText() {
+    if (widget.isLogin) {
+      if (_isPasswordLogin) {
+        return 'Đăng nhập với mật khẩu';
+      } else {
+        return 'Gửi mã OTP';
+      }
+    } else {
+      return 'Đăng ký';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.isLogin ? 'Đăng nhập' : 'Đăng ký'),
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -113,6 +123,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Header Section
               Text(
                 widget.isLogin ? 'Chào mừng trở lại!' : 'Tạo tài khoản mới',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -129,6 +140,8 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                     ),
               ),
               const SizedBox(height: 32),
+
+              // Phone Number Field
               CustomTextField(
                 controller: _phoneController,
                 labelText: 'Số điện thoại',
@@ -145,35 +158,151 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                 },
                 prefixIcon: const Icon(Icons.phone),
               ),
+
+              // Login Method Selection (Only for Login)
               if (widget.isLogin) ...[
-                const SizedBox(height: 16.0),
+                const SizedBox(height: 20.0),
+                Text(
+                  'Chọn phương thức đăng nhập',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                ),
+                const SizedBox(height: 12.0),
+
+                // Login Method Toggle Cards
                 Row(
                   children: [
                     Expanded(
-                      child: TextButton.icon(
-                        onPressed: () {
+                      child: GestureDetector(
+                        onTap: () {
                           setState(() {
-                            _isPasswordLogin = !_isPasswordLogin;
+                            _isPasswordLogin = false;
+                            _passwordController.clear();
                           });
                         },
-                        icon: Icon(
-                            _isPasswordLogin ? Icons.message : Icons.password),
-                        label: Text(_isPasswordLogin
-                            ? 'Đăng nhập bằng OTP'
-                            : 'Đăng nhập bằng mật khẩu'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Theme.of(context).primaryColor,
+                        child: Container(
+                          padding: const EdgeInsets.all(12.0),
+                          decoration: BoxDecoration(
+                            color: !_isPasswordLogin
+                                ? Theme.of(context)
+                                    .primaryColor
+                                    .withOpacity(0.1)
+                                : Colors.grey[100],
+                            border: Border.all(
+                              color: !_isPasswordLogin
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey[300]!,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.message,
+                                color: !_isPasswordLogin
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.grey[600],
+                                size: 28,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Đăng nhập\nbằng OTP',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: !_isPasswordLogin
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Mã xác thực qua SMS',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isPasswordLogin = true;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12.0),
+                          decoration: BoxDecoration(
+                            color: _isPasswordLogin
+                                ? Theme.of(context)
+                                    .primaryColor
+                                    .withOpacity(0.1)
+                                : Colors.grey[100],
+                            border: Border.all(
+                              color: _isPasswordLogin
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey[300]!,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.lock,
+                                color: _isPasswordLogin
+                                    ? Theme.of(context).primaryColor
+                                    : Colors.grey[600],
+                                size: 28,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Đăng nhập\nbằng mật khẩu',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: _isPasswordLogin
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Nhanh chóng và tiện lợi',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
+
+                // Password Field (Only when password login is selected)
                 if (_isPasswordLogin) ...[
-                  const SizedBox(height: 16.0),
+                  const SizedBox(height: 24.0),
                   CustomTextField(
                     controller: _passwordController,
                     labelText: 'Mật khẩu',
-                    hintText: 'Nhập mật khẩu',
+                    hintText: 'Nhập mật khẩu của bạn',
                     obscureText: _obscurePassword,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -200,11 +329,12 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                   ),
                 ],
               ],
-              const SizedBox(height: 24.0),
+
+              const SizedBox(height: 32.0),
+
+              // Submit Button
               CustomButton(
-                text: _isSubmitting
-                    ? 'Đang xử lý...'
-                    : (widget.isLogin ? 'Đăng nhập' : 'Đăng ký'),
+                text: _isSubmitting ? 'Đang xử lý...' : _getButtonText(),
                 onPressed: () {
                   if (!_isSubmitting) {
                     _handleSubmit();
@@ -212,8 +342,10 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                 },
                 isLoading: _isSubmitting,
               ),
+
+              // Navigation Links
               if (widget.isLogin) ...[
-                const SizedBox(height: 16.0),
+                const SizedBox(height: 24.0),
                 Center(
                   child: TextButton(
                     onPressed: () {
@@ -229,7 +361,7 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
                   ),
                 ),
               ] else ...[
-                const SizedBox(height: 16.0),
+                const SizedBox(height: 24.0),
                 Center(
                   child: TextButton(
                     onPressed: () {

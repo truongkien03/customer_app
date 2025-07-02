@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:customer_app/models/user_model.dart';
 import 'package:customer_app/constants/api_constants.dart';
 import 'package:customer_app/utils/validators.dart';
 
@@ -106,31 +105,65 @@ class AuthService {
         }
       }
 
-      // Phân tích JSON
+      // Phân tích JSON an toàn
       Map<String, dynamic> responseData;
       try {
         responseData = jsonDecode(response.body);
       } catch (e) {
-        print('Error parsing JSON: $e');
-        print('Raw response body: ${response.body}');
-        return {
-          'success': false,
-          'message': 'Lỗi xử lý dữ liệu từ server: ${e.toString()}'
-        };
+        print('❌ JSON parse error: $e');
+        print('📱 Raw response body: ${response.body}');
+
+        // Nếu là response thành công nhưng không parse được JSON
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          return {
+            'success': false,
+            'message': 'Server trả về dữ liệu không đúng định dạng'
+          };
+        } else {
+          return {
+            'success': false,
+            'message': 'Lỗi xử lý dữ liệu từ server: ${e.toString()}'
+          };
+        }
       }
 
       // Xử lý response thành công
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        // Trả về cả responseData và data riêng biệt để dễ xử lý
         return {
           'success': true,
-          'data': responseData['data'],
-          'message': responseData['message']
+          'data': responseData.containsKey('data')
+              ? responseData['data']
+              : responseData,
+          'message': responseData['message'],
+          'raw': responseData, // Thêm raw data để debug
         };
       }
 
       // Xử lý response lỗi
       String errorMessage = 'Có lỗi xảy ra';
-      if (responseData.containsKey('message')) {
+
+      // Kiểm tra error format mới với errorCode
+      if (responseData.containsKey('error') && responseData['error'] == true) {
+        if (responseData.containsKey('errorCode')) {
+          final errorCodeData = responseData['errorCode'];
+          if (errorCodeData is Map<String, dynamic>) {
+            // Xử lý từng field error
+            List<String> errors = [];
+            errorCodeData.forEach((field, codes) {
+              if (codes is List) {
+                for (var code in codes) {
+                  errors.add(_getErrorMessageByCode(field, code.toString()));
+                }
+              }
+            });
+            if (errors.isNotEmpty) {
+              errorMessage = errors.join(', ');
+            }
+          }
+        }
+      } else if (responseData.containsKey('message')) {
+        // Xử lý format message cũ
         if (responseData['message'] is Map) {
           // Trường hợp message là một object chứa các field errors
           final Map<String, dynamic> messageObj = responseData['message'];
@@ -144,13 +177,54 @@ class AuthService {
         }
       }
 
-      return {'success': false, 'message': errorMessage};
+      return {
+        'success': false,
+        'message': errorMessage,
+        'errorCode': responseData.containsKey('errorCode')
+            ? responseData['errorCode']
+            : null,
+      };
     } catch (e) {
       print('Error in processResponse: $e');
       return {
         'success': false,
         'message': 'Lỗi xử lý response: ${e.toString()}'
       };
+    }
+  }
+
+  // Helper method để convert error code thành message
+  String _getErrorMessageByCode(String field, String code) {
+    switch (field) {
+      case 'password':
+        switch (code) {
+          case '4071':
+            return 'Số điện thoại chưa đăng ký hoặc chưa thiết lập mật khẩu';
+          default:
+            return 'Lỗi mật khẩu ($code)';
+        }
+      case 'phone_number':
+        switch (code) {
+          case '4001':
+            return 'Số điện thoại không hợp lệ';
+          case '4002':
+            return 'Số điện thoại đã được đăng ký';
+          case '4003':
+            return 'Số điện thoại chưa đăng ký';
+          default:
+            return 'Lỗi số điện thoại ($code)';
+        }
+      case 'otp':
+        switch (code) {
+          case '4101':
+            return 'Mã OTP không đúng';
+          case '4102':
+            return 'Mã OTP đã hết hạn';
+          default:
+            return 'Lỗi mã OTP ($code)';
+        }
+      default:
+        return 'Lỗi $field ($code)';
     }
   }
 
@@ -256,14 +330,20 @@ class AuthService {
       final formattedPhoneNumber =
           Validators.formatPhoneNumberForApi(phoneNumber);
 
+      print('📱 Sending login OTP request for phone: $formattedPhoneNumber');
+
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.loginWithPassword}'),
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.loginOtp}'),
         headers: await getHeaders(withAuth: false),
         body: jsonEncode({'phone_number': formattedPhoneNumber}),
       );
 
+      print('📱 Login OTP response status: ${response.statusCode}');
+      print('📱 Login OTP response body: ${response.body}');
+
       return processResponse(response);
     } catch (e) {
+      print('❌ Error sending login OTP: $e');
       return {'success': false, 'message': 'Lỗi kết nối: ${e.toString()}'};
     }
   }
@@ -275,9 +355,10 @@ class AuthService {
       final formattedPhoneNumber =
           Validators.formatPhoneNumberForApi(phoneNumber);
 
-      print('📱 Sending login request for phone: $formattedPhoneNumber');
+      print(
+          '📱 Sending login verification for phone: $formattedPhoneNumber, OTP: $otp');
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.loginOtp}'),
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.login}'),
         headers: await getHeaders(withAuth: false),
         body: jsonEncode({
           'phone_number': formattedPhoneNumber,
@@ -285,15 +366,29 @@ class AuthService {
         }),
       );
 
-      print('📱 Login response status: ${response.statusCode}');
-      print('📱 Raw response body: ${response.body}');
+      print('📱 Login verification response status: ${response.statusCode}');
+      print('📱 Login verification response body: ${response.body}');
+
+      // Xử lý response trống
+      if (response.body.isEmpty) {
+        print('❌ Empty response body');
+        return {'success': false, 'message': 'Server trả về response trống'};
+      }
+
+      // Parse JSON an toàn
+      Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+      } catch (e) {
+        print('❌ JSON parse error: $e');
+        print('📱 Raw response: ${response.body}');
+        return {'success': false, 'message': 'Lỗi xử lý dữ liệu từ server'};
+      }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final responseData = jsonDecode(response.body);
         print('📦 Parsed response data: $responseData');
 
-        if (responseData != null &&
-            responseData['data'] != null &&
+        if (responseData['data'] != null &&
             responseData['data']['accessToken'] != null) {
           final accessToken = responseData['data']['accessToken'];
           print(
@@ -326,11 +421,12 @@ class AuthService {
           };
         }
       } else {
-        print('❌ Login failed with status: ${response.statusCode}');
+        print(
+            '❌ Login verification failed with status: ${response.statusCode}');
         return processResponse(response);
       }
     } catch (e, stackTrace) {
-      print('❌ Error during login: $e');
+      print('❌ Error during login verification: $e');
       print('📛 Stack trace: $stackTrace');
       return {'success': false, 'message': 'Lỗi kết nối: ${e.toString()}'};
     }

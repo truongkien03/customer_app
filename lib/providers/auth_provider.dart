@@ -1,11 +1,9 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:customer_app/models/user_model.dart';
 import 'package:customer_app/services/auth_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:math' as math;
-import 'package:customer_app/models/address_model.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -15,7 +13,6 @@ class AuthProvider with ChangeNotifier {
   UserModel? _currentUser;
   String? _errorMessage;
   String? _successMessage;
-  Map<String, dynamic> _userData = {};
 
   // Getters
   bool get isAuthenticated => _isAuthenticated;
@@ -196,16 +193,58 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final result = await _authService.getCurrentUser();
+      print('fetchCurrentUser result: $result');
 
-      if (result['success'] && result['data'] != null) {
-        _currentUser = UserModel.fromJson(result['data']['user']);
-        notifyListeners();
-        return true;
+      if (result['success']) {
+        // Thử các cách parse khác nhau
+        Map<String, dynamic>? userData;
+
+        // Kiểm tra raw data trước
+        if (result['raw'] != null) {
+          final raw = result['raw'];
+          print('Raw response data: $raw');
+
+          // Nếu raw data có trực tiếp các field của user
+          if (raw.containsKey('phone_number') ||
+              raw.containsKey('phoneNumber')) {
+            userData = raw;
+          } else if (raw.containsKey('user')) {
+            userData = raw['user'];
+          } else if (raw.containsKey('data') && raw['data'] != null) {
+            if (raw['data'].containsKey('user')) {
+              userData = raw['data']['user'];
+            } else {
+              userData = raw['data'];
+            }
+          }
+        }
+
+        // Fallback to original parsing
+        if (userData == null && result['data'] != null) {
+          if (result['data']['user'] != null) {
+            userData = result['data']['user'];
+          } else if (result['data'] is Map<String, dynamic>) {
+            userData = result['data'];
+          }
+        }
+
+        if (userData != null) {
+          print('Parsing user data: $userData');
+          _currentUser = UserModel.fromJson(userData);
+          print('User parsed successfully: ${_currentUser?.phoneNumber}');
+          notifyListeners();
+          return true;
+        } else {
+          _setError('Không tìm thấy dữ liệu người dùng trong response');
+          print('No user data found in response: $result');
+          return false;
+        }
       } else {
-        _setError(result['message']);
+        _setError(result['message'] ?? 'Không thể lấy thông tin người dùng');
         return false;
       }
     } catch (e) {
+      print('Error in fetchCurrentUser: $e');
       _setError('Lỗi lấy thông tin người dùng: ${e.toString()}');
       return false;
     } finally {
