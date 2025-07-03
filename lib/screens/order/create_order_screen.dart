@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:customer_app/models/address_model.dart';
-import 'package:customer_app/models/order_model.dart';
 import 'package:customer_app/providers/order_provider.dart';
 import 'package:customer_app/widgets/custom_button.dart';
 import 'package:customer_app/widgets/custom_text_field.dart';
 import 'package:customer_app/screens/map/location_picker_screen.dart';
-import 'package:customer_app/utils/validators.dart';
 
 class CreateOrderScreen extends StatefulWidget {
   const CreateOrderScreen({Key? key}) : super(key: key);
@@ -18,30 +16,44 @@ class CreateOrderScreen extends StatefulWidget {
 class _CreateOrderScreenState extends State<CreateOrderScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Address controllers
+  // Address fields
   AddressModel? _fromAddress;
   AddressModel? _toAddress;
 
-  // Item controllers
-  final List<OrderItemForm> _items = [OrderItemForm()];
+  // Items and receiver
+  final List<Map<String, dynamic>> _items = [];
 
-  // Receiver controllers
+  // Controllers
+  final _noteController = TextEditingController();
   final _receiverNameController = TextEditingController();
   final _receiverPhoneController = TextEditingController();
-
-  // Note controllers
-  final _userNoteController = TextEditingController();
+  final _receiverNoteController = TextEditingController();
   final _discountController = TextEditingController();
+
+  // Item form controllers
+  final _itemNameController = TextEditingController();
+  final _itemQuantityController = TextEditingController(text: '1');
+  final _itemPriceController = TextEditingController();
+  final _itemNoteController = TextEditingController();
+
+  // Delivery fee and distance (from API)
+  double? _estimatedFee;
+  double? _estimatedDistance;
+  int? _estimatedTime;
+
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
+    _noteController.dispose();
     _receiverNameController.dispose();
     _receiverPhoneController.dispose();
-    _userNoteController.dispose();
+    _receiverNoteController.dispose();
     _discountController.dispose();
-    for (var item in _items) {
-      item.dispose();
-    }
+    _itemNameController.dispose();
+    _itemQuantityController.dispose();
+    _itemPriceController.dispose();
+    _itemNoteController.dispose();
     super.dispose();
   }
 
@@ -68,9 +80,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     const SizedBox(height: 24),
                     _buildReceiverSection(),
                     const SizedBox(height: 24),
-                    _buildNotesSection(),
+                    _buildEstimateSection(),
                     const SizedBox(height: 24),
-                    _buildEstimationSection(),
+                    _buildNoteSection(),
                   ],
                 ),
               ),
@@ -94,9 +106,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         ),
         const SizedBox(height: 16),
 
-        // From Address
+        // From address
         _buildAddressCard(
-          title: 'Địa chỉ lấy hàng',
+          title: 'Điểm lấy hàng',
           address: _fromAddress,
           icon: Icons.location_on,
           color: Colors.green,
@@ -105,11 +117,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
         const SizedBox(height: 16),
 
-        // To Address
+        // To address
         _buildAddressCard(
-          title: 'Địa chỉ giao hàng',
+          title: 'Điểm giao hàng',
           address: _toAddress,
-          icon: Icons.flag,
+          icon: Icons.place,
           color: Colors.red,
           onTap: () => _selectAddress(isFromAddress: false),
         ),
@@ -129,32 +141,29 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Icon(icon, color: color, size: 24),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: color,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       address?.desc ?? 'Chọn địa chỉ',
                       style: TextStyle(
-                        color:
-                            address != null ? Colors.black87 : Colors.grey[600],
-                        fontSize: 13,
+                        color: address != null ? Colors.black87 : Colors.grey,
+                        fontSize: 14,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -170,6 +179,184 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     );
   }
 
+  Widget _buildEstimateSection() {
+    if (_fromAddress == null || _toAddress == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Consumer<OrderProvider>(
+      builder: (context, orderProvider, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Thông tin giao hàng',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    if (orderProvider.isEstimating)
+                      const Column(
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 8),
+                          Text('Đang tính toán...'),
+                        ],
+                      )
+                    else if (_fromAddress == null || _toAddress == null)
+                      Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.red.shade200),
+                            ),
+                            child: Text(
+                              _fromAddress == null && _toAddress == null
+                                  ? 'Vui lòng chọn điểm đi và điểm đến'
+                                  : _fromAddress == null
+                                      ? 'Vui lòng chọn điểm đi'
+                                      : 'Vui lòng chọn điểm đến',
+                              style: TextStyle(
+                                color: Colors.red.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (_estimatedFee != null &&
+                        _estimatedDistance != null)
+                      Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Khoảng cách:'),
+                              Text(
+                                  '${_estimatedDistance!.toStringAsFixed(1)} km'),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Phí giao hàng:',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                '${_estimatedFee!.toStringAsFixed(0)} VNĐ',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_estimatedTime != null) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Thời gian dự kiến:'),
+                                Text('${_estimatedTime!} phút'),
+                              ],
+                            ),
+                          ],
+                        ],
+                      )
+                    else
+                      CustomButton(
+                        text: 'Ước tính phí giao hàng',
+                        onPressed: _estimateDeliveryFee,
+                      ),
+                    if (orderProvider.errorMessage != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        orderProvider.errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildNoteSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ghi chú & Khuyến mãi',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: 16),
+        CustomTextField(
+          controller: _noteController,
+          labelText: 'Ghi chú đặc biệt',
+          hintText: 'Ví dụ: Gọi điện trước khi đến, cẩn thận...',
+          maxLines: 3,
+          maxLength: 500,
+          prefixIcon: const Icon(Icons.note_outlined),
+        ),
+        const SizedBox(height: 16),
+        CustomTextField(
+          controller: _discountController,
+          labelText: 'Giảm giá (VNĐ)',
+          hintText: 'Nhập số tiền giảm giá (nếu có)',
+          keyboardType: TextInputType.number,
+          prefixIcon: const Icon(Icons.discount_outlined),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 1,
+            blurRadius: 5,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: CustomButton(
+          text: _isSubmitting ? 'Đang tạo đơn...' : 'Tạo đơn hàng',
+          onPressed: _canCreateOrder()
+              ? () {
+                  _createOrder();
+                }
+              : null,
+          isLoading: _isSubmitting,
+        ),
+      ),
+    );
+  }
+
   Widget _buildItemsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,98 +365,76 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Thông tin hàng hóa',
+              'Sản phẩm cần giao',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
             ),
-            TextButton.icon(
-              onPressed: _addItem,
-              icon: const Icon(Icons.add, size: 20),
-              label: const Text('Thêm'),
+            IconButton(
+              onPressed: _showAddItemDialog,
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Thêm sản phẩm',
             ),
           ],
         ),
         const SizedBox(height: 12),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _items.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            return _buildItemCard(index);
-          },
-        ),
+        if (_items.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.inventory_2_outlined,
+                    size: 48, color: Colors.grey.shade400),
+                const SizedBox(height: 8),
+                Text(
+                  'Chưa có sản phẩm nào',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _showAddItemDialog,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Thêm sản phẩm'),
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _items.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            itemBuilder: (context, index) =>
+                _buildItemCard(_items[index], index),
+          ),
       ],
     );
   }
 
-  Widget _buildItemCard(int index) {
-    final item = _items[index];
-
+  Widget _buildItemCard(Map<String, dynamic> item, int index) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+      child: ListTile(
+        title: Text(item['name']),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: CustomTextField(
-                    controller: item.nameController,
-                    labelText: 'Tên hàng hóa',
-                    hintText: 'Ví dụ: Thức ăn, Quần áo...',
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Vui lòng nhập tên hàng hóa';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                if (_items.length > 1) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => _removeItem(index),
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: CustomTextField(
-                    controller: item.quantityController,
-                    labelText: 'Số lượng',
-                    hintText: '1',
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Vui lòng nhập số lượng';
-                      }
-                      final quantity = int.tryParse(value);
-                      if (quantity == null || quantity <= 0) {
-                        return 'Số lượng phải lớn hơn 0';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: CustomTextField(
-                    controller: item.noteController,
-                    labelText: 'Ghi chú',
-                    hintText: 'Tùy chọn',
-                  ),
-                ),
-              ],
-            ),
+            Text('Số lượng: ${item['quantity']}'),
+            if (item['price'] != null) Text('Giá: ${item['price']} VNĐ'),
+            if (item['note'] != null && item['note'].toString().isNotEmpty)
+              Text('Ghi chú: ${item['note']}'),
           ],
         ),
+        trailing: IconButton(
+          onPressed: () => _removeItem(index),
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+        ),
+        onTap: () => _editItem(index),
       ),
     );
   }
@@ -284,196 +449,50 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                 fontWeight: FontWeight.bold,
               ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         CustomTextField(
           controller: _receiverNameController,
-          labelText: 'Tên người nhận',
+          labelText: 'Tên người nhận *',
           hintText: 'Nhập tên người nhận',
+          prefixIcon: const Icon(Icons.person_outline),
           validator: (value) {
-            if (value == null || value.isEmpty) {
+            if (value == null || value.trim().isEmpty) {
               return 'Vui lòng nhập tên người nhận';
             }
             return null;
           },
-          prefixIcon: const Icon(Icons.person),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         CustomTextField(
           controller: _receiverPhoneController,
-          labelText: 'Số điện thoại người nhận',
+          labelText: 'Số điện thoại người nhận *',
           hintText: 'Nhập số điện thoại',
+          prefixIcon: const Icon(Icons.phone_outlined),
           keyboardType: TextInputType.phone,
           validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Vui lòng nhập số điện thoại';
+            if (value == null || value.trim().isEmpty) {
+              return 'Vui lòng nhập số điện thoại người nhận';
             }
-            if (!Validators.isValidPhoneNumber(value)) {
+            if (!RegExp(r'^\+?[0-9]{10,12}$').hasMatch(value.trim())) {
               return 'Số điện thoại không hợp lệ';
             }
             return null;
           },
-          prefixIcon: const Icon(Icons.phone),
+        ),
+        const SizedBox(height: 12),
+        CustomTextField(
+          controller: _receiverNoteController,
+          labelText: 'Ghi chú cho người nhận',
+          hintText: 'Ghi chú giao hàng (tùy chọn)',
+          prefixIcon: const Icon(Icons.note_outlined),
+          maxLines: 2,
         ),
       ],
     );
   }
 
-  Widget _buildNotesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Thông tin bổ sung',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        const SizedBox(height: 16),
-        CustomTextField(
-          controller: _userNoteController,
-          labelText: 'Ghi chú cho tài xế',
-          hintText: 'Ví dụ: Giao gấp, cẩn thận...',
-          maxLines: 3,
-          prefixIcon: const Icon(Icons.note),
-        ),
-        const SizedBox(height: 16),
-        CustomTextField(
-          controller: _discountController,
-          labelText: 'Mã giảm giá',
-          hintText: 'Nhập mã giảm giá (nếu có)',
-          prefixIcon: const Icon(Icons.discount),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEstimationSection() {
-    return Consumer<OrderProvider>(
-      builder: (context, orderProvider, child) {
-        if (orderProvider.estimatedFee == null) {
-          return const SizedBox.shrink();
-        }
-
-        return Card(
-          color: Colors.blue[50],
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.calculate, color: Colors.blue[700]),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Ước tính phí giao hàng',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[700],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildEstimationRow(
-                  'Khoảng cách',
-                  '${orderProvider.estimatedDistance?.toStringAsFixed(1)} km',
-                ),
-                _buildEstimationRow(
-                  'Thời gian dự kiến',
-                  '${orderProvider.estimatedTime} phút',
-                ),
-                const Divider(),
-                _buildEstimationRow(
-                  'Phí giao hàng',
-                  '${orderProvider.estimatedFee?.toStringAsFixed(0)} VND',
-                  isTotal: true,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildEstimationRow(String label, String value,
-      {bool isTotal = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-              fontSize: isTotal ? 16 : 14,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: isTotal ? 16 : 14,
-              color: isTotal ? Colors.green[700] : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomSection() {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_fromAddress != null && _toAddress != null) ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _estimateFee,
-                icon: const Icon(Icons.calculate),
-                label: const Text('Ước tính phí giao hàng'),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          Consumer<OrderProvider>(
-            builder: (context, orderProvider, child) {
-              return CustomButton(
-                text: orderProvider.isCreating
-                    ? 'Đang tạo đơn hàng...'
-                    : 'Tạo đơn hàng',
-                onPressed: () {
-                  if (!orderProvider.isCreating) {
-                    _createOrder();
-                  }
-                },
-                isLoading: orderProvider.isCreating,
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _selectAddress({required bool isFromAddress}) async {
-    final result = await Navigator.push<AddressModel>(
+  Future<void> _selectAddress({required bool isFromAddress}) async {
+    final selectedAddress = await Navigator.push<AddressModel>(
       context,
       MaterialPageRoute(
         builder: (context) => LocationPickerScreen(
@@ -482,136 +501,418 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       ),
     );
 
-    if (result != null) {
+    if (selectedAddress != null) {
       setState(() {
         if (isFromAddress) {
-          _fromAddress = result;
+          _fromAddress = selectedAddress;
         } else {
-          _toAddress = result;
+          _toAddress = selectedAddress;
         }
+
+        // Reset estimate when addresses change
+        _estimatedFee = null;
+        _estimatedDistance = null;
+        _estimatedTime = null;
       });
 
-      // Clear previous estimation when addresses change
-      context.read<OrderProvider>().clearEstimation();
+      // Auto-estimate delivery fee when both addresses are selected
+      if (_fromAddress != null && _toAddress != null) {
+        _estimateDeliveryFee();
+      }
     }
   }
 
-  void _addItem() {
+  Future<void> _estimateDeliveryFee() async {
+    if (_fromAddress == null || _toAddress == null) return;
+
+    final orderProvider = context.read<OrderProvider>();
+
+    final result = await orderProvider.estimateDeliveryFee(
+      fromAddress: _fromAddress!,
+      toAddress: _toAddress!,
+    );
+
+    if (result['success']) {
+      setState(() {
+        _estimatedFee = orderProvider.estimatedFee;
+        _estimatedDistance = orderProvider.estimatedDistance;
+        _estimatedTime = orderProvider.estimatedTime;
+      });
+
+      // Kiểm tra business rule: khoảng cách <= 50km
+      if (_estimatedDistance != null && _estimatedDistance! > 50) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Khoảng cách giao hàng không được vượt quá 50km'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _estimatedDistance = null;
+          _estimatedFee = null;
+          _estimatedTime = null;
+        });
+        return;
+      }
+    }
+  }
+
+  bool _canCreateOrder() {
+    final hasAddresses = _fromAddress != null && _toAddress != null;
+    final hasItems = _items.isNotEmpty;
+    final hasReceiver = _receiverNameController.text.trim().isNotEmpty &&
+        _receiverPhoneController.text.trim().isNotEmpty;
+    final notSubmitting = !_isSubmitting;
+
+    print('🔍 Can create order check:');
+    print('🔍 Has addresses: $hasAddresses');
+    print('🔍 Has items: $hasItems');
+    print('🔍 Has receiver: $hasReceiver');
+    print('🔍 Not submitting: $notSubmitting');
+
+    return hasAddresses && hasItems && hasReceiver && notSubmitting;
+  }
+
+  Future<void> _createOrder() async {
+    if (!_canCreateOrder()) return;
+
     setState(() {
-      _items.add(OrderItemForm());
+      _isSubmitting = true;
+    });
+
+    try {
+      // Chuẩn bị dữ liệu receiver
+      final receiver = {
+        'name': _receiverNameController.text.trim(),
+        'phone': _receiverPhoneController.text.trim(),
+      };
+
+      if (_receiverNoteController.text.trim().isNotEmpty) {
+        receiver['note'] = _receiverNoteController.text.trim();
+      }
+
+      // Chuẩn bị dữ liệu gửi API theo format chuẩn
+      final orderData = {
+        'from_address': _fromAddress!.toJson(),
+        'to_address': _toAddress!.toJson(),
+        'items': _items,
+        'receiver': receiver,
+      };
+
+      // Thêm user_note nếu có
+      if (_noteController.text.trim().isNotEmpty) {
+        orderData['user_note'] = _noteController.text.trim();
+      }
+
+      // Thêm discount nếu có
+      final discountText = _discountController.text.trim();
+      if (discountText.isNotEmpty) {
+        final discount = double.tryParse(discountText);
+        if (discount != null && discount >= 0) {
+          orderData['discount'] = discount;
+        }
+      }
+
+      print('🔥 Creating order with data: $orderData');
+
+      final orderProvider = context.read<OrderProvider>();
+      final success = await orderProvider.createOrder(
+        fromAddress: _fromAddress!,
+        toAddress: _toAddress!,
+        items: _items,
+        receiver: receiver,
+        userNote: _noteController.text.trim().isNotEmpty
+            ? _noteController.text.trim()
+            : null,
+        discount:
+            discountText.isNotEmpty ? double.tryParse(discountText) : null,
+      );
+
+      if (!mounted) return;
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tạo đơn hàng thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Quay lại màn hình trước hoặc chuyển đến màn hình đơn hàng
+        Navigator.of(context).pop();
+      } else {
+        // Hiển thị lỗi từ provider
+        final errorMessage =
+            orderProvider.errorMessage ?? 'Tạo đơn hàng thất bại';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi tạo đơn hàng: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  void _showAddItemDialog() {
+    // Reset controllers
+    _itemNameController.clear();
+    _itemQuantityController.text = '1';
+    _itemPriceController.clear();
+    _itemNoteController.clear();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Thêm sản phẩm'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _itemNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Tên sản phẩm *',
+                  hintText: 'Nhập tên sản phẩm',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _itemQuantityController,
+                      decoration: const InputDecoration(
+                        labelText: 'Số lượng *',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: _itemPriceController,
+                      decoration: const InputDecoration(
+                        labelText: 'Giá (VNĐ)',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _itemNoteController,
+                decoration: const InputDecoration(
+                  labelText: 'Ghi chú',
+                  hintText: 'Ghi chú cho sản phẩm (tùy chọn)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _addItem();
+              Navigator.pop(context);
+            },
+            child: const Text('Thêm'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _addItem() {
+    if (_itemNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập tên sản phẩm'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final quantity = int.tryParse(_itemQuantityController.text.trim()) ?? 1;
+    if (quantity <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Số lượng phải lớn hơn 0'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final item = {
+      'name': _itemNameController.text.trim(),
+      'quantity': quantity,
+    };
+
+    final price = double.tryParse(_itemPriceController.text.trim());
+    if (price != null && price >= 0) {
+      item['price'] = price;
+    }
+
+    final note = _itemNoteController.text.trim();
+    if (note.isNotEmpty) {
+      item['note'] = note;
+    }
+
+    setState(() {
+      _items.add(item);
     });
   }
 
   void _removeItem(int index) {
-    if (_items.length > 1) {
-      setState(() {
-        _items[index].dispose();
-        _items.removeAt(index);
-      });
-    }
+    setState(() {
+      _items.removeAt(index);
+    });
   }
 
-  void _estimateFee() async {
-    if (_fromAddress == null || _toAddress == null) {
+  void _editItem(int index) {
+    final item = _items[index];
+
+    _itemNameController.text = item['name'] ?? '';
+    _itemQuantityController.text = item['quantity']?.toString() ?? '1';
+    _itemPriceController.text = item['price']?.toString() ?? '';
+    _itemNoteController.text = item['note'] ?? '';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Chỉnh sửa sản phẩm'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _itemNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Tên sản phẩm *',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _itemQuantityController,
+                      decoration: const InputDecoration(
+                        labelText: 'Số lượng *',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: _itemPriceController,
+                      decoration: const InputDecoration(
+                        labelText: 'Giá (VNĐ)',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _itemNoteController,
+                decoration: const InputDecoration(
+                  labelText: 'Ghi chú',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _updateItem(index);
+              Navigator.pop(context);
+            },
+            child: const Text('Cập nhật'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateItem(int index) {
+    if (_itemNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng chọn đầy đủ địa chỉ'),
-          backgroundColor: Colors.orange,
+          content: Text('Vui lòng nhập tên sản phẩm'),
+          backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    final orderProvider = context.read<OrderProvider>();
-    final success = await orderProvider.estimateDeliveryFee(
-      fromAddress: _fromAddress!,
-      toAddress: _toAddress!,
-    );
-
-    if (!success && orderProvider.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(orderProvider.errorMessage!),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _createOrder() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_fromAddress == null || _toAddress == null) {
+    final quantity = int.tryParse(_itemQuantityController.text.trim()) ?? 1;
+    if (quantity <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng chọn đầy đủ địa chỉ'),
-          backgroundColor: Colors.orange,
+          content: Text('Số lượng phải lớn hơn 0'),
+          backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    // Prepare order items
-    final orderItems = _items.map((item) {
-      return OrderItem(
-        name: item.nameController.text,
-        quantity: int.parse(item.quantityController.text),
-        note: item.noteController.text.isNotEmpty
-            ? item.noteController.text
-            : null,
-      );
-    }).toList();
+    final item = {
+      'name': _itemNameController.text.trim(),
+      'quantity': quantity,
+    };
 
-    // Prepare receiver info
-    final receiver = ReceiverInfo(
-      name: _receiverNameController.text,
-      phoneNumber: _receiverPhoneController.text,
-    );
-
-    final orderProvider = context.read<OrderProvider>();
-    final success = await orderProvider.createOrder(
-      fromAddress: _fromAddress!,
-      toAddress: _toAddress!,
-      items: orderItems,
-      receiver: receiver,
-      userNote:
-          _userNoteController.text.isNotEmpty ? _userNoteController.text : null,
-      discount:
-          _discountController.text.isNotEmpty ? _discountController.text : null,
-    );
-
-    if (!mounted) return;
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đơn hàng đã được tạo thành công!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Navigate to order detail or tracking screen
-      Navigator.of(context).pop(orderProvider.currentOrder);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(orderProvider.errorMessage ?? 'Không thể tạo đơn hàng'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    final price = double.tryParse(_itemPriceController.text.trim());
+    if (price != null && price >= 0) {
+      item['price'] = price;
     }
-  }
-}
 
-class OrderItemForm {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController quantityController =
-      TextEditingController(text: '1');
-  final TextEditingController noteController = TextEditingController();
+    final note = _itemNoteController.text.trim();
+    if (note.isNotEmpty) {
+      item['note'] = note;
+    }
 
-  void dispose() {
-    nameController.dispose();
-    quantityController.dispose();
-    noteController.dispose();
+    setState(() {
+      _items[index] = item;
+    });
   }
 }

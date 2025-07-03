@@ -5,6 +5,7 @@ import 'package:customer_app/providers/auth_provider.dart';
 import 'package:customer_app/utils/validators.dart';
 import 'package:customer_app/widgets/custom_button.dart';
 import 'package:customer_app/widgets/custom_text_field.dart';
+import 'package:customer_app/screens/auth/forgot_password_screen.dart';
 
 class PhoneInputScreen extends StatefulWidget {
   final bool isLogin;
@@ -345,7 +346,23 @@ class _PhoneInputScreenState extends State<PhoneInputScreen> {
 
               // Navigation Links
               if (widget.isLogin) ...[
-                const SizedBox(height: 24.0),
+                const SizedBox(height: 16.0),
+                // Forgot Password Link (only show for password login)
+                if (_isPasswordLogin)
+                  Center(
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ForgotPasswordScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Quên mật khẩu?'),
+                    ),
+                  ),
+                const SizedBox(height: 8.0),
                 Center(
                   child: TextButton(
                     onPressed: () {

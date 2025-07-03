@@ -612,4 +612,114 @@ class AuthService {
       return {'success': false, 'message': 'Lỗi đặt mật khẩu: ${e.toString()}'};
     }
   }
+
+  // ======== FORGOT PASSWORD & RESET PASSWORD ========
+
+  /// Gửi OTP quên mật khẩu
+  /// Sử dụng API: POST /api/password/forgot
+  Future<Map<String, dynamic>> sendForgotPasswordOtp(String phoneNumber) async {
+    try {
+      // Format số điện thoại trước khi gửi API
+      final formattedPhone = Validators.formatPhoneNumberForApi(phoneNumber);
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.forgotPassword}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'phone_number': formattedPhone,
+        }),
+      );
+
+      print(
+          'Send forgot password OTP - Phone: $phoneNumber -> $formattedPhone');
+      print('Send forgot password OTP - Status: ${response.statusCode}');
+      print('Send forgot password OTP - Response: ${response.body}');
+
+      if (response.statusCode == 204) {
+        // Success - No content expected
+        return {
+          'success': true,
+          'message': 'OTP đã được gửi đến số điện thoại của bạn'
+        };
+      } else {
+        final data = json.decode(response.body);
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Gửi OTP thất bại'
+        };
+      }
+    } catch (e) {
+      print('Error sending forgot password OTP: $e');
+      return {'success': false, 'message': 'Lỗi kết nối: ${e.toString()}'};
+    }
+  }
+
+  /// Reset mật khẩu với OTP
+  /// Sử dụng API: POST /api/password/reset
+  Future<Map<String, dynamic>> resetPassword({
+    required String phoneNumber,
+    required String otp,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    try {
+      // Format số điện thoại trước khi gửi API
+      final formattedPhone = Validators.formatPhoneNumberForApi(phoneNumber);
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.resetPassword}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'phone_number': formattedPhone,
+          'otp': otp,
+          'password': password,
+          'password_confirmation': passwordConfirmation,
+        }),
+      );
+
+      print('Reset password - Phone: $phoneNumber -> $formattedPhone');
+      print('Reset password - Status: ${response.statusCode}');
+      print('Reset password - Response: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // Success
+        if (response.statusCode == 200 && response.body.isNotEmpty) {
+          // API trả về token, tự động đăng nhập
+          final data = json.decode(response.body);
+          if (data['data'] != null && data['data']['accessToken'] != null) {
+            final token = data['data']['accessToken'];
+            await saveToken(token);
+            return {
+              'success': true,
+              'message': 'Mật khẩu đã được thay đổi thành công',
+              'auto_login': true,
+              'token': token
+            };
+          }
+        }
+
+        // Trường hợp chỉ reset mật khẩu, không auto login
+        return {
+          'success': true,
+          'message': 'Mật khẩu đã được thay đổi thành công',
+          'auto_login': false
+        };
+      } else {
+        final data = json.decode(response.body);
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Reset mật khẩu thất bại'
+        };
+      }
+    } catch (e) {
+      print('Error resetting password: $e');
+      return {'success': false, 'message': 'Lỗi kết nối: ${e.toString()}'};
+    }
+  }
 }

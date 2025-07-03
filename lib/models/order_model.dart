@@ -43,14 +43,54 @@ class OrderModel {
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     try {
+      // Parse địa chỉ từ object hoặc string
+      String? fromAddressDesc;
+      double? fromLat;
+      double? fromLon;
+
+      if (json['from_address'] is Map) {
+        final fromAddr = json['from_address'] as Map<String, dynamic>;
+        fromAddressDesc = fromAddr['desc']?.toString();
+        fromLat = _parseDouble(fromAddr['lat']);
+        fromLon = _parseDouble(fromAddr['lon']);
+      } else {
+        fromAddressDesc = json['from_address']?.toString();
+        fromLat = _parseDouble(json['from_lat']);
+        fromLon = _parseDouble(json['from_lon']);
+      }
+
+      String? toAddressDesc;
+      double? toLat;
+      double? toLon;
+
+      if (json['to_address'] is Map) {
+        final toAddr = json['to_address'] as Map<String, dynamic>;
+        toAddressDesc = toAddr['desc']?.toString();
+        toLat = _parseDouble(toAddr['lat']);
+        toLon = _parseDouble(toAddr['lon']);
+      } else {
+        toAddressDesc = json['to_address']?.toString();
+        toLat = _parseDouble(json['to_lat']);
+        toLon = _parseDouble(json['to_lon']);
+      }
+
+      // Parse status từ status_code hoặc status
+      OrderStatus? orderStatus;
+      if (json['status_code'] != null) {
+        orderStatus = OrderStatus.fromCode(
+            int.tryParse(json['status_code'].toString()) ?? 0);
+      } else if (json['status'] != null) {
+        orderStatus = OrderStatus.fromString(json['status'].toString());
+      }
+
       return OrderModel(
         id: json['id']?.toString(),
-        fromAddress: json['from_address']?.toString(),
-        fromLat: _parseDouble(json['from_lat']),
-        fromLon: _parseDouble(json['from_lon']),
-        toAddress: json['to_address']?.toString(),
-        toLat: _parseDouble(json['to_lat']),
-        toLon: _parseDouble(json['to_lon']),
+        fromAddress: fromAddressDesc,
+        fromLat: fromLat,
+        fromLon: fromLon,
+        toAddress: toAddressDesc,
+        toLat: toLat,
+        toLon: toLon,
         items: json['items'] != null
             ? (json['items'] as List)
                 .map((item) => OrderItem.fromJson(item))
@@ -61,14 +101,14 @@ class OrderModel {
             : null,
         userNote: json['user_note']?.toString(),
         discount: json['discount']?.toString(),
-        estimatedFee: _parseDouble(json['estimated_fee']),
+        // Ưu tiên shipping_cost từ API mới, fallback về estimated_fee cũ
+        estimatedFee: _parseDouble(json['shipping_cost']) ??
+            _parseDouble(json['estimated_fee']),
         distance: _parseDouble(json['distance']),
         estimatedTime: json['estimated_time'] != null
             ? int.tryParse(json['estimated_time'].toString())
             : null,
-        status: json['status'] != null
-            ? OrderStatus.fromString(json['status'].toString())
-            : null,
+        status: orderStatus,
         driverId: json['driver_id']?.toString(),
         driver:
             json['driver'] != null ? DriverInfo.fromJson(json['driver']) : null,
@@ -122,11 +162,13 @@ class OrderModel {
 class OrderItem {
   final String name;
   final int quantity;
+  final double? price;
   final String? note;
 
   OrderItem({
     required this.name,
     required this.quantity,
+    this.price,
     this.note,
   });
 
@@ -134,6 +176,7 @@ class OrderItem {
     return OrderItem(
       name: json['name']?.toString() ?? '',
       quantity: int.tryParse(json['quantity']?.toString() ?? '1') ?? 1,
+      price: OrderModel._parseDouble(json['price']),
       note: json['note']?.toString(),
     );
   }
@@ -142,6 +185,7 @@ class OrderItem {
     return {
       'name': name,
       'quantity': quantity,
+      'price': price,
       'note': note,
     };
   }
@@ -227,6 +271,23 @@ enum OrderStatus {
       case 'completed':
         return OrderStatus.completed;
       case 'cancelled':
+        return OrderStatus.cancelled;
+      default:
+        return OrderStatus.pending;
+    }
+  }
+
+  static OrderStatus fromCode(int statusCode) {
+    switch (statusCode) {
+      case 0: // pending
+        return OrderStatus.pending;
+      case 1: // driver_accepted
+      case 2: // in_transit
+      case 3: // delivered
+        return OrderStatus.inprocess;
+      case 4: // completed
+        return OrderStatus.completed;
+      case 5: // cancelled
         return OrderStatus.cancelled;
       default:
         return OrderStatus.pending;

@@ -289,6 +289,12 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void _clearMessages() {
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+  }
+
   // Get current user data
   Future<Map<String, dynamic>> getCurrentUser() async {
     try {
@@ -483,6 +489,71 @@ class AuthProvider with ChangeNotifier {
       return true;
     } catch (e) {
       _setError('Error setting password: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // ======== FORGOT PASSWORD & RESET PASSWORD ========
+
+  /// Gửi OTP quên mật khẩu
+  Future<bool> sendForgotPasswordOtp(String phoneNumber) async {
+    _clearMessages();
+    _setLoading(true);
+
+    try {
+      final result = await _authService.sendForgotPasswordOtp(phoneNumber);
+
+      if (!result['success']) {
+        _setError(result['message'] ?? 'Gửi OTP thất bại');
+        return false;
+      }
+
+      _setSuccess(result['message'] ?? 'OTP đã được gửi');
+      return true;
+    } catch (e) {
+      _setError('Lỗi gửi OTP: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Reset mật khẩu với OTP
+  Future<bool> resetPasswordWithOtp({
+    required String phoneNumber,
+    required String otp,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    _clearMessages();
+    _setLoading(true);
+
+    try {
+      final result = await _authService.resetPassword(
+        phoneNumber: phoneNumber,
+        otp: otp,
+        password: password,
+        passwordConfirmation: passwordConfirmation,
+      );
+
+      if (!result['success']) {
+        _setError(result['message'] ?? 'Reset mật khẩu thất bại');
+        return false;
+      }
+
+      // Nếu API trả về token, tự động đăng nhập
+      if (result['auto_login'] == true) {
+        _isAuthenticated = true;
+        // Fetch user data sau khi đăng nhập
+        await fetchCurrentUser();
+      }
+
+      _setSuccess(result['message'] ?? 'Mật khẩu đã được thay đổi thành công');
+      return true;
+    } catch (e) {
+      _setError('Lỗi reset mật khẩu: ${e.toString()}');
       return false;
     } finally {
       _setLoading(false);

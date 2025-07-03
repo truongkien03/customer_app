@@ -21,10 +21,37 @@ class _OrderListScreenState extends State<OrderListScreen>
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
 
+    // Listen to tab changes
+    _tabController.addListener(_onTabChanged);
+
     // Load orders when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<OrderProvider>().loadOrders(refresh: true);
+      _loadOrdersForCurrentTab();
     });
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) {
+      _loadOrdersForCurrentTab();
+    }
+  }
+
+  void _loadOrdersForCurrentTab() {
+    final orderProvider = context.read<OrderProvider>();
+    switch (_tabController.index) {
+      case 0: // Tất cả
+        orderProvider.loadOrders(refresh: true);
+        break;
+      case 1: // Đang chờ
+        orderProvider.loadOrders(refresh: true, status: 'inproccess');
+        break;
+      case 2: // Đang giao
+        orderProvider.loadOrders(refresh: true, status: 'inproccess');
+        break;
+      case 3: // Hoàn thành
+        orderProvider.loadOrders(refresh: true, status: 'completed');
+        break;
+    }
   }
 
   @override
@@ -53,7 +80,7 @@ class _OrderListScreenState extends State<OrderListScreen>
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              context.read<OrderProvider>().refreshOrders();
+              _loadOrdersForCurrentTab();
             },
           ),
         ],
@@ -78,7 +105,7 @@ class _OrderListScreenState extends State<OrderListScreen>
 
           if (result != null) {
             // Refresh orders list
-            context.read<OrderProvider>().refreshOrders();
+            _loadOrdersForCurrentTab();
           }
         },
         child: const Icon(Icons.add),
@@ -107,7 +134,9 @@ class _OrderListScreenState extends State<OrderListScreen>
         }
 
         return RefreshIndicator(
-          onRefresh: () => orderProvider.refreshOrders(),
+          onRefresh: () async {
+            _loadOrdersForCurrentTab();
+          },
           child: ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: orders.length,
@@ -419,7 +448,7 @@ class _OrderListScreenState extends State<OrderListScreen>
                 );
 
                 if (result != null) {
-                  context.read<OrderProvider>().refreshOrders();
+                  _loadOrdersForCurrentTab();
                 }
               },
               icon: const Icon(Icons.add),
@@ -453,7 +482,7 @@ class _OrderListScreenState extends State<OrderListScreen>
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
-              context.read<OrderProvider>().refreshOrders();
+              _loadOrdersForCurrentTab();
             },
             icon: const Icon(Icons.refresh),
             label: const Text('Thử lại'),

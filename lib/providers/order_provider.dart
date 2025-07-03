@@ -59,8 +59,8 @@ class OrderProvider with ChangeNotifier {
     _errorMessage = null;
   }
 
-  // Ước tính phí giao hàng
-  Future<bool> estimateDeliveryFee({
+  // Ước tính phí giao hàng từ API
+  Future<Map<String, dynamic>> estimateDeliveryFee({
     required AddressModel fromAddress,
     required AddressModel toAddress,
   }) async {
@@ -75,36 +75,57 @@ class OrderProvider with ChangeNotifier {
 
       if (result['success']) {
         final data = result['data'];
-        _estimatedFee = data['estimated_fee']?.toDouble();
+        _estimatedFee = data['shipping_cost']?.toDouble();
         _estimatedDistance = data['distance']?.toDouble();
-        _estimatedTime = data['estimated_time']?.toInt();
-
-        print('💰 Estimated fee: $_estimatedFee VND');
-        print('📏 Distance: $_estimatedDistance km');
-        print('⏱️ Time: $_estimatedTime minutes');
+        _estimatedTime = data['estimated_time'] != null
+            ? int.tryParse(data['estimated_time'].toString().split('-').first)
+            : null;
 
         notifyListeners();
-        return true;
+        return result;
       } else {
         _setError(result['message']);
-        return false;
+        return result;
       }
     } catch (e) {
-      _setError('Lỗi ước tính phí: ${e.toString()}');
-      return false;
+      final errorResult = {
+        'success': false,
+        'message': 'Lỗi ước tính phí giao hàng: ${e.toString()}',
+      };
+      _setError(errorResult['message'] as String?);
+      return errorResult;
     } finally {
       _setEstimating(false);
     }
   }
 
-  // Tạo đơn hàng mới
+  // Lấy route đường đi từ API
+  Future<Map<String, dynamic>> getRoute({
+    required AddressModel fromAddress,
+    required AddressModel toAddress,
+  }) async {
+    try {
+      final result = await _orderService.getRoute(
+        fromAddress: fromAddress,
+        toAddress: toAddress,
+      );
+      return result;
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Lỗi lấy thông tin đường đi: ${e.toString()}',
+      };
+    }
+  }
+
+  // Tạo đơn hàng mới theo API specification mới
   Future<bool> createOrder({
     required AddressModel fromAddress,
     required AddressModel toAddress,
-    required List<OrderItem> items,
-    required ReceiverInfo receiver,
+    required List<Map<String, dynamic>> items,
+    required Map<String, dynamic> receiver,
     String? userNote,
-    String? discount,
+    double? discount,
   }) async {
     _setCreating(true);
     _clearError();
@@ -120,12 +141,14 @@ class OrderProvider with ChangeNotifier {
       );
 
       if (result['success']) {
-        _currentOrder = result['data'] as OrderModel;
+        // Parse data to OrderModel if needed
+        final orderData = result['data'];
 
-        // Thêm đơn hàng mới vào đầu danh sách
-        _orders.insert(0, _currentOrder!);
+        print('✅ Order created successfully with data: $orderData');
 
-        print('✅ Order created successfully: ${_currentOrder!.id}');
+        // Reload orders to get updated list
+        await loadOrders(refresh: true);
+
         notifyListeners();
         return true;
       } else {
@@ -143,7 +166,7 @@ class OrderProvider with ChangeNotifier {
   // Lấy danh sách đơn hàng
   Future<bool> loadOrders({
     bool refresh = false,
-    OrderStatus? status,
+    String? status, // 'inproccess', 'completed', hoặc null để lấy tất cả
   }) async {
     if (refresh) {
       _orders.clear();
@@ -153,14 +176,36 @@ class OrderProvider with ChangeNotifier {
     _clearError();
 
     try {
-      final result = await _orderService.getUserOrders(
-        page: 1,
-        limit: 50,
-        status: status,
-      );
+      Map<String, dynamic> result;
+
+      if (status != null) {
+        // Lấy đơn hàng theo status cụ thể
+        result = await _orderService.getUserOrders(status: status);
+      } else {
+        // Lấy tất cả đơn hàng
+        result = await _orderService.getAllUserOrders();
+      }
 
       if (result['success']) {
-        _orders = result['data'] as List<OrderModel>;
+        final ordersData = result['data'];
+        if (ordersData is List) {
+          _orders = ordersData
+              .map((orderJson) {
+                try {
+                  return OrderModel.fromJson(orderJson);
+                } catch (e) {
+                  print('❌ Error parsing order: $e');
+                  print('📦 Order data: $orderJson');
+                  return null;
+                }
+              })
+              .where((order) => order != null)
+              .cast<OrderModel>()
+              .toList();
+        } else {
+          _orders = [];
+        }
+
         print('📋 Loaded ${_orders.length} orders');
         notifyListeners();
         return true;
@@ -177,25 +222,40 @@ class OrderProvider with ChangeNotifier {
   }
 
   // Lấy chi tiết đơn hàng
-  Future<bool> loadOrderDetail(String orderId) async {
+  Future<bool> loadOrderDetail(int orderId) async {
     _setLoading(true);
     _clearError();
 
     try {
-      final result = await _orderService.getOrderDetail(orderId);
+      final result = await _orderService.getOrderDetails(orderId);
 
       if (result['success']) {
-        _currentOrder = result['data'] as OrderModel;
+        // Parse order data from response
+        final orderData = result['data'];
+        if (orderData != null) {
+          // Create OrderModel from data
+          try {
+            _currentOrder = OrderModel.fromJson(orderData);
 
-        // Cập nhật trong danh sách nếu có
-        final index = _orders.indexWhere((order) => order.id == orderId);
-        if (index != -1) {
-          _orders[index] = _currentOrder!;
+            // Cập nhật trong danh sách nếu có
+            final index =
+                _orders.indexWhere((order) => order.id == orderId.toString());
+            if (index != -1) {
+              _orders[index] = _currentOrder!;
+            }
+
+            print('📄 Loaded order detail: ${_currentOrder!.id}');
+            notifyListeners();
+            return true;
+          } catch (e) {
+            print('❌ Error parsing order data: $e');
+            _setError('Lỗi xử lý dữ liệu đơn hàng');
+            return false;
+          }
+        } else {
+          _setError('Không tìm thấy thông tin đơn hàng');
+          return false;
         }
-
-        print('📄 Loaded order detail: ${_currentOrder!.id}');
-        notifyListeners();
-        return true;
       } else {
         _setError(result['message']);
         return false;
@@ -209,44 +269,16 @@ class OrderProvider with ChangeNotifier {
   }
 
   // Hủy đơn hàng
-  Future<bool> cancelOrder(String orderId) async {
+  Future<bool> cancelOrder(int orderId, String reason) async {
     _setLoading(true);
     _clearError();
 
     try {
-      final result = await _orderService.cancelOrder(orderId);
+      final result = await _orderService.cancelOrder(orderId, reason);
 
       if (result['success']) {
-        // Cập nhật status trong danh sách
-        final index = _orders.indexWhere((order) => order.id == orderId);
-        if (index != -1) {
-          _orders[index] = OrderModel(
-            id: _orders[index].id,
-            fromAddress: _orders[index].fromAddress,
-            fromLat: _orders[index].fromLat,
-            fromLon: _orders[index].fromLon,
-            toAddress: _orders[index].toAddress,
-            toLat: _orders[index].toLat,
-            toLon: _orders[index].toLon,
-            items: _orders[index].items,
-            receiver: _orders[index].receiver,
-            userNote: _orders[index].userNote,
-            discount: _orders[index].discount,
-            estimatedFee: _orders[index].estimatedFee,
-            distance: _orders[index].distance,
-            estimatedTime: _orders[index].estimatedTime,
-            status: OrderStatus.cancelled, // Cập nhật status
-            driverId: _orders[index].driverId,
-            driver: _orders[index].driver,
-            createdAt: _orders[index].createdAt,
-            updatedAt: DateTime.now(),
-          );
-        }
-
-        // Cập nhật current order nếu đúng order
-        if (_currentOrder?.id == orderId) {
-          _currentOrder = _orders[index];
-        }
+        // Reload orders to get updated list
+        await loadOrders(refresh: true);
 
         print('❌ Order cancelled: $orderId');
         notifyListeners();
