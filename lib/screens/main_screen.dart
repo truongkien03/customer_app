@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:customer_app/providers/auth_provider.dart';
 import 'package:customer_app/screens/home/home_tab.dart';
-import 'package:customer_app/screens/orders/orders_tab.dart';
-import 'package:customer_app/screens/create_order/create_order_tab.dart';
+import 'package:customer_app/screens/order/order_list_screen.dart';
+import 'package:customer_app/screens/order/create_order_screen.dart';
 import 'package:customer_app/screens/notifications/notifications_tab.dart';
 import 'package:customer_app/screens/profile/profile_tab.dart';
 
@@ -19,8 +19,8 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = [
     const HomeTab(),
-    const OrdersTab(),
-    const CreateOrderTab(),
+    const OrderListScreen(),
+    const CreateOrderScreen(),
     const NotificationsTab(),
     ProfileTab(),
   ];

@@ -17,6 +17,12 @@ class ApiConstants {
   static const String userAvatar = '/profile/avatar';
 
   // Order endpoints
-  static const String orders = '/orders';
-  static const String createOrder = '/orders/create';
+  static const String orders = '/orders'; // Lấy danh sách đơn hàng
+  static const String createOrder = '/orders'; // Tạo đơn hàng mới
+  static const String orderDetail =
+      '/orders'; // Chi tiết đơn hàng (GET /orders/{id})
+  static const String cancelOrder =
+      '/orders'; // Hủy đơn hàng (DELETE /orders/{id})
+  static const String estimateFee =
+      '/orders/estimate'; // Ước tính phí giao hàng
 }

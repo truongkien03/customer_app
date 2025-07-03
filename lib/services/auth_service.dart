@@ -145,15 +145,19 @@ class AuthService {
 
       // Kiểm tra error format mới với errorCode
       if (responseData.containsKey('error') && responseData['error'] == true) {
-        if (responseData.containsKey('errorCode')) {
+        // Ưu tiên sử dụng message từ server nếu có
+        if (responseData.containsKey('message') &&
+            responseData['message'] != null) {
+          errorMessage = responseData['message'].toString();
+        } else if (responseData.containsKey('errorCode')) {
+          // Fallback: tạo message từ error code nếu không có message
           final errorCodeData = responseData['errorCode'];
           if (errorCodeData is Map<String, dynamic>) {
-            // Xử lý từng field error
             List<String> errors = [];
             errorCodeData.forEach((field, codes) {
               if (codes is List) {
                 for (var code in codes) {
-                  errors.add(_getErrorMessageByCode(field, code.toString()));
+                  errors.add('Lỗi $field ($code)');
                 }
               }
             });
@@ -190,41 +194,6 @@ class AuthService {
         'success': false,
         'message': 'Lỗi xử lý response: ${e.toString()}'
       };
-    }
-  }
-
-  // Helper method để convert error code thành message
-  String _getErrorMessageByCode(String field, String code) {
-    switch (field) {
-      case 'password':
-        switch (code) {
-          case '4071':
-            return 'Số điện thoại chưa đăng ký hoặc chưa thiết lập mật khẩu';
-          default:
-            return 'Lỗi mật khẩu ($code)';
-        }
-      case 'phone_number':
-        switch (code) {
-          case '4001':
-            return 'Số điện thoại không hợp lệ';
-          case '4002':
-            return 'Số điện thoại đã được đăng ký';
-          case '4003':
-            return 'Số điện thoại chưa đăng ký';
-          default:
-            return 'Lỗi số điện thoại ($code)';
-        }
-      case 'otp':
-        switch (code) {
-          case '4101':
-            return 'Mã OTP không đúng';
-          case '4102':
-            return 'Mã OTP đã hết hạn';
-          default:
-            return 'Lỗi mã OTP ($code)';
-        }
-      default:
-        return 'Lỗi $field ($code)';
     }
   }
 
@@ -265,6 +234,8 @@ class AuthService {
       final formattedPhoneNumber =
           Validators.formatPhoneNumberForApi(phoneNumber);
 
+      print('📱 Sending register request for phone: $formattedPhoneNumber');
+
       final response = await http.post(
         Uri.parse('${ApiConstants.baseUrl}${ApiConstants.register}'),
         headers: await getHeaders(withAuth: false),
@@ -275,49 +246,43 @@ class AuthService {
       );
 
       print('📱 Register response status: ${response.statusCode}');
-      print('📱 Raw response body: ${response.body}');
+      print('📱 Register response body: ${response.body}');
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final responseData = jsonDecode(response.body);
-        print('📦 Parsed response data: $responseData');
+      // Sử dụng processResponse thống nhất
+      final result = processResponse(response);
 
-        if (responseData != null &&
-            responseData['data'] != null &&
-            responseData['data']['accessToken'] != null) {
-          final accessToken = responseData['data']['accessToken'];
+      // Nếu thành công, lưu token
+      if (result['success'] && result['data'] != null) {
+        final data = result['data'];
+        if (data['accessToken'] != null) {
+          final accessToken = data['accessToken'];
           print(
               '🎟️ Access token received: ${accessToken.substring(0, math.min<int>(10, accessToken.length))}...');
 
           final saved = await saveToken(accessToken);
           print('💾 Token save attempt result: $saved');
 
-          // Verify token was saved
-          final savedToken = await getToken();
-          print('🔍 Verifying saved token...');
-          if (savedToken != null) {
-            print(
-                '✅ Token verified: ${savedToken.substring(0, math.min<int>(10, savedToken.length))}...');
+          if (saved) {
+            print('✅ Registration successful with token saved');
             return {
               'success': true,
-              'data': responseData['data'],
+              'data': data,
               'message': 'Đăng ký thành công'
             };
           } else {
-            print('❌ No token found after save attempt');
+            print('❌ Failed to save token');
             return {'success': false, 'message': 'Lỗi lưu token đăng ký'};
           }
         } else {
-          print('❌ Invalid response data structure');
-          print('📦 Available data: $responseData');
+          print('❌ No access token in response data');
           return {
             'success': false,
             'message': 'Không tìm thấy token trong response'
           };
         }
-      } else {
-        print('❌ Register failed with status: ${response.statusCode}');
-        return processResponse(response);
       }
+
+      return result;
     } catch (e) {
       print('❌ Error during registration: $e');
       return {'success': false, 'message': 'Lỗi kết nối: ${e.toString()}'};

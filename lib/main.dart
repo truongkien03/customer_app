@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:customer_app/providers/auth_provider.dart';
+import 'package:customer_app/providers/order_provider.dart';
 import 'package:customer_app/screens/auth/phone_input_screen.dart';
 import 'package:customer_app/screens/auth/otp_verification_screen.dart';
 import 'package:customer_app/screens/main_screen.dart';
@@ -16,8 +17,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => AuthProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => AuthProvider()),
+        ChangeNotifierProvider(create: (context) => OrderProvider()),
+      ],
       child: MaterialApp(
         title: 'Customer App',
         theme: ThemeData(
