@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:customer_app/providers/auth_provider.dart';
 import 'package:customer_app/providers/order_provider.dart';
 import 'package:customer_app/screens/auth/phone_input_screen.dart';
@@ -7,8 +8,9 @@ import 'package:customer_app/screens/auth/otp_verification_screen.dart';
 import 'package:customer_app/screens/main_screen.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 

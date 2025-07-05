@@ -75,11 +75,19 @@ class OrderProvider with ChangeNotifier {
 
       if (result['success']) {
         final data = result['data'];
-        _estimatedFee = data['shipping_cost']?.toDouble();
+        // Cập nhật theo API response format mới
+        _estimatedFee = data['shipping_fee']?.toDouble();
         _estimatedDistance = data['distance']?.toDouble();
-        _estimatedTime = data['estimated_time'] != null
-            ? int.tryParse(data['estimated_time'].toString().split('-').first)
-            : null;
+
+        // Xử lý estimated_time format "15-30 phút"
+        if (data['estimated_time'] != null) {
+          final timeStr = data['estimated_time'].toString();
+          // Extract số đầu tiên từ string "15-30 phút" -> 15
+          final match = RegExp(r'(\d+)').firstMatch(timeStr);
+          _estimatedTime = match != null ? int.parse(match.group(1)!) : null;
+        } else {
+          _estimatedTime = null;
+        }
 
         notifyListeners();
         return result;

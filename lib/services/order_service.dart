@@ -133,21 +133,18 @@ class OrderService {
     try {
       print('🚚 Estimating delivery fee...');
 
-      // Xây dựng query parameters theo API spec
-      final queryParams = {
-        'from_lat': fromAddress.lat.toString(),
-        'from_lon': fromAddress.lon.toString(),
-        'to_lat': toAddress.lat.toString(),
-        'to_lon': toAddress.lon.toString(),
+      // Xây dựng request body theo API spec
+      final requestBody = {
+        'from_address': fromAddress.toJson(),
+        'to_address': toAddress.toJson(),
       };
 
-      final uri =
-          Uri.parse('${ApiConstants.baseUrl}${ApiConstants.shippingFee}')
-              .replace(queryParameters: queryParams);
+      print('🚚 Request body: ${jsonEncode(requestBody)}');
 
-      final response = await http.get(
-        uri,
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}${ApiConstants.shippingFee}'),
         headers: await _getHeaders(),
+        body: jsonEncode(requestBody),
       );
 
       print('🚚 Shipping fee response: ${response.statusCode}');

@@ -101,8 +101,9 @@ class OrderModel {
             : null,
         userNote: json['user_note']?.toString(),
         discount: json['discount']?.toString(),
-        // Ưu tiên shipping_cost từ API mới, fallback về estimated_fee cũ
-        estimatedFee: _parseDouble(json['shipping_cost']) ??
+        // Ưu tiên shipping_fee từ API mới, fallback về shipping_cost và estimated_fee cũ
+        estimatedFee: _parseDouble(json['shipping_fee']) ??
+            _parseDouble(json['shipping_cost']) ??
             _parseDouble(json['estimated_fee']),
         distance: _parseDouble(json['distance']),
         estimatedTime: json['estimated_time'] != null

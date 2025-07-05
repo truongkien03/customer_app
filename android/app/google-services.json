@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "462964419715",
+    "firebase_url": "https://delivery-0805-default-rtdb.firebaseio.com",
+    "project_id": "delivery-0805",
+    "storage_bucket": "delivery-0805.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:462964419715:android:0ba6f30e5868f11a683fb6",
+        "android_client_info": {
+          "package_name": "com.datn.delivery.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2Np96JI1Jj1ohmNVueEc9Mr2dffAWzi4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:462964419715:android:bcda0b26ccd4966f683fb6",
+        "android_client_info": {
+          "package_name": "com.datn.delivery.user"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2Np96JI1Jj1ohmNVueEc9Mr2dffAWzi4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
