@@ -369,6 +369,16 @@ class _ProfileFormState extends State<ProfileForm> {
             backgroundColor: Colors.deepPurple[100],
             textColor: Colors.deepPurple,
           ),
+          const SizedBox(height: 16),
+          // Development only - Test notification system
+          CustomButton(
+            text: 'Test Notification System',
+            onPressed: () {
+              Navigator.pushNamed(context, '/test-notifications');
+            },
+            backgroundColor: Colors.orange[100],
+            textColor: Colors.orange[800],
+          ),
         ],
       ),
     );

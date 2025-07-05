@@ -5,6 +5,7 @@ import 'package:customer_app/providers/order_provider.dart';
 import 'package:customer_app/widgets/custom_button.dart';
 import 'package:customer_app/widgets/custom_text_field.dart';
 import 'package:customer_app/screens/map/location_picker_screen.dart';
+import 'package:customer_app/screens/order/order_tracking_screen.dart';
 
 class CreateOrderScreen extends StatefulWidget {
   const CreateOrderScreen({Key? key}) : super(key: key);
@@ -631,15 +632,30 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       if (!mounted) return;
 
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tạo đơn hàng thành công!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        // Lấy order vừa tạo từ provider
+        final createdOrder = orderProvider.currentOrder;
 
-        // Quay lại màn hình trước hoặc chuyển đến màn hình đơn hàng
-        Navigator.of(context).pop();
+        if (createdOrder != null && mounted) {
+          // Chuyển đến màn hình tracking
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => OrderTrackingScreen(order: createdOrder),
+            ),
+          );
+        } else {
+          // Fallback: refresh orders và quay về main screen
+          orderProvider.refreshOrders();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Tạo đơn hàng thành công!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            Navigator.of(context).pop();
+          }
+        }
       } else {
         // Hiển thị lỗi từ provider
         final errorMessage =

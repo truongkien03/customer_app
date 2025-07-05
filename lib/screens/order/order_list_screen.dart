@@ -13,8 +13,11 @@ class OrderListScreen extends StatefulWidget {
 }
 
 class _OrderListScreenState extends State<OrderListScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late TabController _tabController;
+
+  @override
+  bool get wantKeepAlive => true; // Keep state alive
 
   @override
   void initState() {
@@ -28,6 +31,13 @@ class _OrderListScreenState extends State<OrderListScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadOrdersForCurrentTab();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh orders when returning to this screen
+    _loadOrdersForCurrentTab();
   }
 
   void _onTabChanged() {
@@ -62,6 +72,8 @@ class _OrderListScreenState extends State<OrderListScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Đơn hàng của tôi'),
@@ -89,9 +101,9 @@ class _OrderListScreenState extends State<OrderListScreen>
         controller: _tabController,
         children: [
           _buildOrderList(), // Tất cả
-          _buildOrderList(status: OrderStatus.pending), // Đang chờ
-          _buildOrderList(status: OrderStatus.inprocess), // Đang giao
-          _buildOrderList(status: OrderStatus.completed), // Hoàn thành
+          _buildOrderList(statusCode: 1), // Đang chờ
+          _buildOrderList(statusCode: 2), // Đang giao
+          _buildOrderList(statusCode: 3), // Hoàn thành
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -113,11 +125,21 @@ class _OrderListScreenState extends State<OrderListScreen>
     );
   }
 
-  Widget _buildOrderList({OrderStatus? status}) {
+  Widget _buildOrderList({int? statusCode}) {
     return Consumer<OrderProvider>(
       builder: (context, orderProvider, child) {
-        if (orderProvider.isLoading && orderProvider.orders.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
+        // Show loading indicator when loading
+        if (orderProvider.isLoading) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Đang tải danh sách đơn hàng...'),
+              ],
+            ),
+          );
         }
 
         if (orderProvider.errorMessage != null &&
@@ -125,12 +147,12 @@ class _OrderListScreenState extends State<OrderListScreen>
           return _buildErrorState(orderProvider.errorMessage!);
         }
 
-        final orders = status != null
-            ? orderProvider.getOrdersByStatus(status)
+        final orders = statusCode != null
+            ? orderProvider.getOrdersByStatusCode(statusCode)
             : orderProvider.orders;
 
         if (orders.isEmpty) {
-          return _buildEmptyState(status);
+          return _buildEmptyState(statusCode);
         }
 
         return RefreshIndicator(
@@ -179,7 +201,7 @@ class _OrderListScreenState extends State<OrderListScreen>
                       fontSize: 16,
                     ),
                   ),
-                  _buildStatusChip(order.status),
+                  _buildStatusChip(order.statusCode),
                 ],
               ),
 
@@ -190,7 +212,7 @@ class _OrderListScreenState extends State<OrderListScreen>
                 icon: Icons.location_on,
                 color: Colors.green,
                 label: 'Lấy hàng',
-                address: order.fromAddress ?? 'Không xác định',
+                address: order.fromAddress?.desc ?? 'Không xác định',
               ),
 
               const SizedBox(height: 8),
@@ -199,7 +221,7 @@ class _OrderListScreenState extends State<OrderListScreen>
                 icon: Icons.flag,
                 color: Colors.red,
                 label: 'Giao đến',
-                address: order.toAddress ?? 'Không xác định',
+                address: order.toAddress?.desc ?? 'Không xác định',
               ),
 
               const SizedBox(height: 12),
@@ -230,9 +252,9 @@ class _OrderListScreenState extends State<OrderListScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (order.estimatedFee != null)
+                  if (order.shippingCost != null)
                     Text(
-                      '${order.estimatedFee!.toStringAsFixed(0)} VND',
+                      '${order.shippingCost!.toStringAsFixed(0)} VND',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.green,
@@ -284,9 +306,9 @@ class _OrderListScreenState extends State<OrderListScreen>
                                 fontSize: 12,
                               ),
                             ),
-                            if (order.driver!.vehiclePlate != null)
+                            if (order.driver!.phoneNumber != null)
                               Text(
-                                'Biển số: ${order.driver!.vehiclePlate}',
+                                'SĐT: ${order.driver!.phoneNumber}',
                                 style: TextStyle(
                                   color: Colors.grey[600],
                                   fontSize: 11,
@@ -295,14 +317,14 @@ class _OrderListScreenState extends State<OrderListScreen>
                           ],
                         ),
                       ),
-                      if (order.driver!.rating != null)
+                      if (order.driver!.reviewRate != null)
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.star, color: Colors.amber, size: 14),
                             const SizedBox(width: 2),
                             Text(
-                              order.driver!.rating!.toStringAsFixed(1),
+                              order.driver!.reviewRate!.toStringAsFixed(1),
                               style: const TextStyle(fontSize: 12),
                             ),
                           ],
@@ -318,29 +340,40 @@ class _OrderListScreenState extends State<OrderListScreen>
     );
   }
 
-  Widget _buildStatusChip(OrderStatus? status) {
-    if (status == null) return const SizedBox.shrink();
+  Widget _buildStatusChip(int? statusCode) {
+    if (statusCode == null) return const SizedBox.shrink();
 
     Color color;
     Color backgroundColor;
+    String statusText;
 
-    switch (status) {
-      case OrderStatus.pending:
+    switch (statusCode) {
+      case 1:
         color = Colors.orange[700]!;
         backgroundColor = Colors.orange[100]!;
+        statusText = 'Chờ tài xế';
         break;
-      case OrderStatus.inprocess:
+      case 2:
         color = Colors.blue[700]!;
         backgroundColor = Colors.blue[100]!;
+        statusText = 'Đang giao';
         break;
-      case OrderStatus.completed:
+      case 3:
         color = Colors.green[700]!;
         backgroundColor = Colors.green[100]!;
+        statusText = 'Hoàn thành';
         break;
-      case OrderStatus.cancelled:
+      case 4:
+      case 5:
+      case 6:
         color = Colors.red[700]!;
         backgroundColor = Colors.red[100]!;
+        statusText = 'Đã hủy';
         break;
+      default:
+        color = Colors.grey[700]!;
+        backgroundColor = Colors.grey[100]!;
+        statusText = 'Không xác định';
     }
 
     return Container(
@@ -350,7 +383,7 @@ class _OrderListScreenState extends State<OrderListScreen>
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        status.displayName,
+        statusText,
         style: TextStyle(
           color: color,
           fontSize: 12,
@@ -396,20 +429,20 @@ class _OrderListScreenState extends State<OrderListScreen>
     );
   }
 
-  Widget _buildEmptyState(OrderStatus? status) {
+  Widget _buildEmptyState(int? statusCode) {
     String message;
     IconData icon;
 
-    switch (status) {
-      case OrderStatus.pending:
+    switch (statusCode) {
+      case 1:
         message = 'Không có đơn hàng đang chờ';
         icon = Icons.hourglass_empty;
         break;
-      case OrderStatus.inprocess:
+      case 2:
         message = 'Không có đơn hàng đang giao';
         icon = Icons.local_shipping;
         break;
-      case OrderStatus.completed:
+      case 3:
         message = 'Chưa có đơn hàng hoàn thành';
         icon = Icons.check_circle_outline;
         break;
@@ -436,7 +469,7 @@ class _OrderListScreenState extends State<OrderListScreen>
               fontSize: 16,
             ),
           ),
-          if (status == null) ...[
+          if (statusCode == null) ...[
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () async {

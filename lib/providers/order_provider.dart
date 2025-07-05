@@ -149,16 +149,27 @@ class OrderProvider with ChangeNotifier {
       );
 
       if (result['success']) {
-        // Parse data to OrderModel if needed
+        // Parse order data từ response và lưu làm currentOrder
         final orderData = result['data'];
 
-        print('✅ Order created successfully with data: $orderData');
+        try {
+          _currentOrder = OrderModel.fromJson(orderData);
+          print('✅ Order created successfully: ${_currentOrder!.id}');
 
-        // Reload orders to get updated list
-        await loadOrders(refresh: true);
+          // Thêm đơn hàng mới vào danh sách
+          _addOrUpdateOrderInList(_currentOrder!);
 
-        notifyListeners();
-        return true;
+          notifyListeners();
+          return true;
+        } catch (e) {
+          print('❌ Error parsing created order: $e');
+          print('📦 Order data: $orderData');
+
+          // Fallback: reload orders list
+          await loadOrders(refresh: true);
+          notifyListeners();
+          return true;
+        }
       } else {
         _setError(result['message']);
         return false;
@@ -235,7 +246,7 @@ class OrderProvider with ChangeNotifier {
     _clearError();
 
     try {
-      final result = await _orderService.getOrderDetails(orderId);
+      final result = await _orderService.getOrderDetail(orderId.toString());
 
       if (result['success']) {
         // Parse order data from response
@@ -245,12 +256,8 @@ class OrderProvider with ChangeNotifier {
           try {
             _currentOrder = OrderModel.fromJson(orderData);
 
-            // Cập nhật trong danh sách nếu có
-            final index =
-                _orders.indexWhere((order) => order.id == orderId.toString());
-            if (index != -1) {
-              _orders[index] = _currentOrder!;
-            }
+            // Thêm hoặc cập nhật đơn hàng trong danh sách
+            _addOrUpdateOrderInList(_currentOrder!);
 
             print('📄 Loaded order detail: ${_currentOrder!.id}');
             notifyListeners();
@@ -274,6 +281,28 @@ class OrderProvider with ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  // Helper method để thêm hoặc cập nhật đơn hàng trong danh sách
+  void _addOrUpdateOrderInList(OrderModel order) {
+    final index = _orders.indexWhere((o) => o.id == order.id);
+
+    if (index != -1) {
+      // Cập nhật đơn hàng hiện có
+      _orders[index] = order;
+      print('✅ Updated existing order in list: ${order.id}');
+    } else {
+      // Thêm đơn hàng mới vào đầu danh sách
+      _orders.insert(0, order);
+      print('✅ Added new order to list: ${order.id}');
+    }
+
+    // Sắp xếp lại danh sách theo thời gian tạo (mới nhất trước)
+    _orders.sort((a, b) {
+      final dateA = a.createdAt ?? DateTime.now();
+      final dateB = b.createdAt ?? DateTime.now();
+      return dateB.compareTo(dateA); // Mới nhất trước
+    });
   }
 
   // Hủy đơn hàng
@@ -327,13 +356,19 @@ class OrderProvider with ChangeNotifier {
     await loadOrders(refresh: true);
   }
 
-  // Filter orders by status
-  List<OrderModel> getOrdersByStatus(OrderStatus status) {
-    return _orders.where((order) => order.status == status).toList();
+  // Filter orders by status code
+  List<OrderModel> getOrdersByStatusCode(int statusCode) {
+    return _orders.where((order) => order.statusCode == statusCode).toList();
   }
 
-  // Get orders count by status
-  int getOrdersCountByStatus(OrderStatus status) {
-    return _orders.where((order) => order.status == status).length;
+  // Get orders count by status code
+  int getOrdersCountByStatusCode(int statusCode) {
+    return _orders.where((order) => order.statusCode == statusCode).length;
+  }
+
+  // Public method to add or update order in list (useful for notification handling)
+  void addOrUpdateOrder(OrderModel order) {
+    _addOrUpdateOrderInList(order);
+    notifyListeners();
   }
 }

@@ -20,8 +20,15 @@ class ApiConstants {
   static const String updateProfile = '/profile';
   static const String userAvatar = '/profile/avatar';
 
+  // Notification endpoints
+  static const String notifications =
+      '/notifications'; // Lấy danh sách thông báo
+
+  // FCM endpoints
+  static const String fcmToken = '/fcm/token'; // Đăng ký/xóa FCM token
+
   // Order endpoints
-  static const String orders = '/orders'; // Tạo đơn hàng mới (POST)
+
   static const String createOrder = '/orders'; // Tạo đơn hàng mới
   static const String ordersInprocess =
       '/orders/inproccess'; // Đơn hàng đang xử lý

@@ -398,7 +398,8 @@ class OrderService {
 
       final response = await http
           .get(
-            Uri.parse('${ApiConstants.baseUrl}${ApiConstants.orders}/$orderId'),
+            Uri.parse(
+                '${ApiConstants.baseUrl}${ApiConstants.createOrder}/$orderId'),
             headers: await _getHeaders(),
           )
           .timeout(
@@ -419,6 +420,45 @@ class OrderService {
     }
   }
 
+  /// GET /orders/{orderId} - Lấy chi tiết đơn hàng theo documentation
+  /// Khi nào sử dụng: Khi user tap vào đơn hàng để xem chi tiết đầy đủ
+  Future<Map<String, dynamic>> getOrderDetail(String orderId) async {
+    try {
+      final url = '${ApiConstants.baseUrl}${ApiConstants.orderDetail}/$orderId';
+      print('🚚 Getting order detail from: $url');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: await _getHeaders(),
+      );
+
+      print('🚚 Order detail response status: ${response.statusCode}');
+      print('🚚 Order detail response body: ${response.body}');
+
+      final result = _processResponse(response);
+
+      if (result['success'] == true) {
+        final data = result['data'];
+
+        // Parse order data theo API response format
+        if (data is Map<String, dynamic>) {
+          return {
+            'success': true,
+            'data': data, // Trả về raw data để caller tự parse
+            'message': 'Lấy chi tiết đơn hàng thành công'
+          };
+        } else {
+          throw Exception('Invalid order data format');
+        }
+      }
+
+      return result;
+    } catch (e) {
+      print('❌ Error getting order detail: $e');
+      return {'success': false, 'message': 'Lỗi kết nối: ${e.toString()}'};
+    }
+  }
+
   // Hủy đơn hàng
   Future<Map<String, dynamic>> cancelOrder(int orderId, String reason) async {
     try {
@@ -427,7 +467,7 @@ class OrderService {
       final response = await http
           .post(
             Uri.parse(
-                '${ApiConstants.baseUrl}${ApiConstants.orders}/$orderId/cancel'),
+                '${ApiConstants.baseUrl}${ApiConstants.createOrder}/$orderId/cancel'),
             headers: await _getHeaders(),
             body: jsonEncode({'reason': reason}),
           )
@@ -460,7 +500,7 @@ class OrderService {
       final response = await http
           .post(
             Uri.parse(
-                '${ApiConstants.baseUrl}${ApiConstants.orders}/$orderId/rate'),
+                '${ApiConstants.baseUrl}${ApiConstants.createOrder}/$orderId/rate'),
             headers: await _getHeaders(),
             body: jsonEncode({
               'rating': rating,

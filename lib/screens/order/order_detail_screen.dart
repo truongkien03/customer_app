@@ -103,23 +103,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     Color backgroundColor;
     IconData statusIcon;
 
-    switch (order.status) {
-      case OrderStatus.pending:
+    switch (order.statusCode) {
+      case 1:
         statusColor = Colors.orange[700]!;
         backgroundColor = Colors.orange[50]!;
         statusIcon = Icons.schedule;
         break;
-      case OrderStatus.inprocess:
+      case 2:
         statusColor = Colors.blue[700]!;
         backgroundColor = Colors.blue[50]!;
         statusIcon = Icons.local_shipping;
         break;
-      case OrderStatus.completed:
+      case 3:
         statusColor = Colors.green[700]!;
         backgroundColor = Colors.green[50]!;
         statusIcon = Icons.check_circle;
         break;
-      case OrderStatus.cancelled:
+      case 4:
+      case 5:
+      case 6:
         statusColor = Colors.red[700]!;
         backgroundColor = Colors.red[50]!;
         statusIcon = Icons.cancel;
@@ -151,7 +153,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    order.status?.displayName ?? 'Không xác định',
+                    order.statusName,
                     style: TextStyle(
                       color: statusColor,
                       fontSize: 18,
@@ -185,9 +187,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               icon: Icons.location_on,
               color: Colors.green,
               title: 'Điểm lấy hàng',
-              address: order.fromAddress ?? 'Không xác định',
-              coordinates: order.fromLat != null && order.fromLon != null
-                  ? '${order.fromLat}, ${order.fromLon}'
+              address: order.fromAddress?.desc ?? 'Không xác định',
+              coordinates: order.fromAddress?.lat != null &&
+                      order.fromAddress?.lon != null
+                  ? '${order.fromAddress!.lat}, ${order.fromAddress!.lon}'
                   : null,
             ),
             const SizedBox(height: 16),
@@ -195,10 +198,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               icon: Icons.place,
               color: Colors.red,
               title: 'Điểm giao hàng',
-              address: order.toAddress ?? 'Không xác định',
-              coordinates: order.toLat != null && order.toLon != null
-                  ? '${order.toLat}, ${order.toLon}'
-                  : null,
+              address: order.toAddress?.desc ?? 'Không xác định',
+              coordinates:
+                  order.toAddress?.lat != null && order.toAddress?.lon != null
+                      ? '${order.toAddress!.lat}, ${order.toAddress!.lon}'
+                      : null,
             ),
           ],
         ),
@@ -271,16 +275,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 'Khoảng cách',
                 '${order.distance!.toStringAsFixed(1)} km',
               ),
-            if (order.estimatedFee != null)
+            if (order.shippingCost != null)
               _buildInfoRow(
                 'Phí giao hàng',
-                '${order.estimatedFee!.toStringAsFixed(0)} VNĐ',
+                '${order.shippingCost!.toStringAsFixed(0)} VNĐ',
                 isHighlight: true,
-              ),
-            if (order.estimatedTime != null)
-              _buildInfoRow(
-                'Thời gian ước tính',
-                '${order.estimatedTime} phút',
               ),
           ],
         ),
@@ -378,24 +377,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           fontSize: 16,
                         ),
                       ),
-                      if (order.driver!.vehiclePlate != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Biển số: ${order.driver!.vehiclePlate}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                      if (order.driver!.rating != null) ...[
+                      if (order.driver!.reviewRate != null) ...[
                         const SizedBox(height: 4),
                         Row(
                           children: [
                             Icon(Icons.star, color: Colors.amber, size: 16),
                             const SizedBox(width: 4),
                             Text(
-                              order.driver!.rating!.toStringAsFixed(1),
+                              order.driver!.reviewRate!.toStringAsFixed(1),
                               style: const TextStyle(fontSize: 14),
                             ),
                           ],
@@ -496,13 +485,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget _buildActionButtons(OrderModel order) {
     return Column(
       children: [
-        if (order.status == OrderStatus.pending) ...[
+        if (order.statusCode == 1) ...[
           CustomButton(
             text: 'Hủy đơn hàng',
             onPressed: () => _showCancelDialog(order),
           ),
         ],
-        if (order.status == OrderStatus.completed) ...[
+        if (order.statusCode == 3) ...[
           CustomButton(
             text: 'Đánh giá đơn hàng',
             onPressed: () => _showRatingDialog(order),

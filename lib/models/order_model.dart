@@ -1,123 +1,115 @@
+import 'package:flutter/material.dart';
+
 class OrderModel {
   final String? id;
-  final String? fromAddress;
-  final double? fromLat;
-  final double? fromLon;
-  final String? toAddress;
-  final double? toLat;
-  final double? toLon;
+  final int? userId;
+  final int? driverId;
+  final AddressData? fromAddress;
+  final AddressData? toAddress;
   final List<OrderItem>? items;
-  final ReceiverInfo? receiver;
-  final String? userNote;
-  final String? discount;
-  final double? estimatedFee;
+  final double? shippingCost;
   final double? distance;
-  final int? estimatedTime;
-  final OrderStatus? status;
-  final String? driverId;
-  final DriverInfo? driver;
+  final double? discount;
+  final int? statusCode;
+  final DateTime? completedAt;
+  final DateTime? driverAcceptAt;
+  final String? userNote;
+  final String? driverNote;
+  final int? driverRate;
+  final ReceiverData? receiver;
+  final int? isSharable;
+  final List<int>? exceptDrivers;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? customerAvatar;
+  final String? customerName;
+  final DriverData? driver;
 
   OrderModel({
     this.id,
-    this.fromAddress,
-    this.fromLat,
-    this.fromLon,
-    this.toAddress,
-    this.toLat,
-    this.toLon,
-    this.items,
-    this.receiver,
-    this.userNote,
-    this.discount,
-    this.estimatedFee,
-    this.distance,
-    this.estimatedTime,
-    this.status,
+    this.userId,
     this.driverId,
-    this.driver,
+    this.fromAddress,
+    this.toAddress,
+    this.items,
+    this.shippingCost,
+    this.distance,
+    this.discount,
+    this.statusCode,
+    this.completedAt,
+    this.driverAcceptAt,
+    this.userNote,
+    this.driverNote,
+    this.driverRate,
+    this.receiver,
+    this.isSharable,
+    this.exceptDrivers,
     this.createdAt,
     this.updatedAt,
+    this.customerAvatar,
+    this.customerName,
+    this.driver,
   });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     try {
-      // Parse địa chỉ từ object hoặc string
-      String? fromAddressDesc;
-      double? fromLat;
-      double? fromLon;
-
-      if (json['from_address'] is Map) {
-        final fromAddr = json['from_address'] as Map<String, dynamic>;
-        fromAddressDesc = fromAddr['desc']?.toString();
-        fromLat = _parseDouble(fromAddr['lat']);
-        fromLon = _parseDouble(fromAddr['lon']);
-      } else {
-        fromAddressDesc = json['from_address']?.toString();
-        fromLat = _parseDouble(json['from_lat']);
-        fromLon = _parseDouble(json['from_lon']);
-      }
-
-      String? toAddressDesc;
-      double? toLat;
-      double? toLon;
-
-      if (json['to_address'] is Map) {
-        final toAddr = json['to_address'] as Map<String, dynamic>;
-        toAddressDesc = toAddr['desc']?.toString();
-        toLat = _parseDouble(toAddr['lat']);
-        toLon = _parseDouble(toAddr['lon']);
-      } else {
-        toAddressDesc = json['to_address']?.toString();
-        toLat = _parseDouble(json['to_lat']);
-        toLon = _parseDouble(json['to_lon']);
-      }
-
-      // Parse status từ status_code hoặc status
-      OrderStatus? orderStatus;
-      if (json['status_code'] != null) {
-        orderStatus = OrderStatus.fromCode(
-            int.tryParse(json['status_code'].toString()) ?? 0);
-      } else if (json['status'] != null) {
-        orderStatus = OrderStatus.fromString(json['status'].toString());
-      }
-
       return OrderModel(
         id: json['id']?.toString(),
-        fromAddress: fromAddressDesc,
-        fromLat: fromLat,
-        fromLon: fromLon,
-        toAddress: toAddressDesc,
-        toLat: toLat,
-        toLon: toLon,
-        items: json['items'] != null
+        userId: json['user_id'] is int
+            ? json['user_id']
+            : int.tryParse(json['user_id']?.toString() ?? ''),
+        driverId: json['driver_id'] is int
+            ? json['driver_id']
+            : int.tryParse(json['driver_id']?.toString() ?? ''),
+        fromAddress: json['from_address'] is Map<String, dynamic>
+            ? AddressData.fromJson(json['from_address'])
+            : null,
+        toAddress: json['to_address'] is Map<String, dynamic>
+            ? AddressData.fromJson(json['to_address'])
+            : null,
+        items: json['items'] is List
             ? (json['items'] as List)
-                .map((item) => OrderItem.fromJson(item))
+                .map((item) => OrderItem.fromJson(item as Map<String, dynamic>))
                 .toList()
             : null,
-        receiver: json['receiver'] != null
-            ? ReceiverInfo.fromJson(json['receiver'])
+        shippingCost: _parseDouble(json['shipping_cost']),
+        distance: _parseDouble(json['distance']),
+        discount: _parseDouble(json['discount']),
+        statusCode: json['status_code'] is int
+            ? json['status_code']
+            : int.tryParse(json['status_code']?.toString() ?? ''),
+        completedAt: json['completed_at'] != null
+            ? DateTime.tryParse(json['completed_at'].toString())
+            : null,
+        driverAcceptAt: json['driver_accept_at'] != null
+            ? DateTime.tryParse(json['driver_accept_at'].toString())
             : null,
         userNote: json['user_note']?.toString(),
-        discount: json['discount']?.toString(),
-        // Ưu tiên shipping_fee từ API mới, fallback về shipping_cost và estimated_fee cũ
-        estimatedFee: _parseDouble(json['shipping_fee']) ??
-            _parseDouble(json['shipping_cost']) ??
-            _parseDouble(json['estimated_fee']),
-        distance: _parseDouble(json['distance']),
-        estimatedTime: json['estimated_time'] != null
-            ? int.tryParse(json['estimated_time'].toString())
+        driverNote: json['driver_note']?.toString(),
+        driverRate: json['driver_rate'] is int
+            ? json['driver_rate']
+            : int.tryParse(json['driver_rate']?.toString() ?? ''),
+        receiver: json['receiver'] is Map<String, dynamic>
+            ? ReceiverData.fromJson(json['receiver'])
             : null,
-        status: orderStatus,
-        driverId: json['driver_id']?.toString(),
-        driver:
-            json['driver'] != null ? DriverInfo.fromJson(json['driver']) : null,
+        isSharable: json['is_sharable'] is int
+            ? json['is_sharable']
+            : int.tryParse(json['is_sharable']?.toString() ?? '0'),
+        exceptDrivers: json['except_drivers'] is List
+            ? (json['except_drivers'] as List)
+                .map((id) => int.tryParse(id.toString()) ?? 0)
+                .toList()
+            : null,
         createdAt: json['created_at'] != null
             ? DateTime.tryParse(json['created_at'].toString())
             : null,
         updatedAt: json['updated_at'] != null
             ? DateTime.tryParse(json['updated_at'].toString())
+            : null,
+        customerAvatar: json['customerAvatar']?.toString(),
+        customerName: json['customerName']?.toString(),
+        driver: json['driver'] is Map<String, dynamic>
+            ? DriverData.fromJson(json['driver'])
             : null,
       );
     } catch (e) {
@@ -127,30 +119,50 @@ class OrderModel {
     }
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'from_address': fromAddress,
-      'from_lat': fromLat,
-      'from_lon': fromLon,
-      'to_address': toAddress,
-      'to_lat': toLat,
-      'to_lon': toLon,
-      'items': items?.map((item) => item.toJson()).toList(),
-      'receiver': receiver?.toJson(),
-      'user_note': userNote,
-      'discount': discount,
-      'estimated_fee': estimatedFee,
-      'distance': distance,
-      'estimated_time': estimatedTime,
-      'status': status?.toString(),
-      'driver_id': driverId,
-      'driver': driver?.toJson(),
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
+  // Getter cho status name theo documentation
+  String get statusName {
+    switch (statusCode) {
+      case 1:
+        return 'Chờ tài xế chấp nhận';
+      case 2:
+        return 'Đang giao hàng';
+      case 3:
+        return 'Đã hoàn thành';
+      case 4:
+        return 'Người dùng hủy';
+      case 5:
+        return 'Tài xế hủy';
+      case 6:
+        return 'Hệ thống hủy';
+      default:
+        return 'Không xác định';
+    }
   }
 
+  // Getter cho status color
+  get statusColor {
+    switch (statusCode) {
+      case 1:
+        return const Color(0xFFFF9800); // Orange - Pending
+      case 2:
+        return const Color(0xFF2196F3); // Blue - In process
+      case 3:
+        return const Color(0xFF4CAF50); // Green - Completed
+      case 4:
+      case 5:
+      case 6:
+        return const Color(0xFFF44336); // Red - Cancelled
+      default:
+        return const Color(0xFF757575); // Grey - Unknown
+    }
+  }
+
+  // Getter kiểm tra có thể đánh giá tài xế không
+  bool get canReviewDriver {
+    return statusCode == 3 && driverId != null && driverRate == null;
+  }
+
+  // Helper method để parse double
   static double? _parseDouble(dynamic value) {
     if (value == null) return null;
     if (value is double) return value;
@@ -158,25 +170,55 @@ class OrderModel {
     if (value is String) return double.tryParse(value);
     return null;
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'driver_id': driverId,
+      'from_address': fromAddress?.toJson(),
+      'to_address': toAddress?.toJson(),
+      'items': items?.map((item) => item.toJson()).toList(),
+      'shipping_cost': shippingCost,
+      'distance': distance,
+      'discount': discount,
+      'status_code': statusCode,
+      'completed_at': completedAt?.toIso8601String(),
+      'driver_accept_at': driverAcceptAt?.toIso8601String(),
+      'user_note': userNote,
+      'driver_note': driverNote,
+      'driver_rate': driverRate,
+      'receiver': receiver?.toJson(),
+      'is_sharable': isSharable,
+      'except_drivers': exceptDrivers,
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+      'customerAvatar': customerAvatar,
+      'customerName': customerName,
+      'driver': driver?.toJson(),
+    };
+  }
 }
 
 class OrderItem {
-  final String name;
-  final int quantity;
+  final String? name;
+  final int? quantity;
   final double? price;
   final String? note;
 
   OrderItem({
-    required this.name,
-    required this.quantity,
+    this.name,
+    this.quantity,
     this.price,
     this.note,
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     return OrderItem(
-      name: json['name']?.toString() ?? '',
-      quantity: int.tryParse(json['quantity']?.toString() ?? '1') ?? 1,
+      name: json['name']?.toString(),
+      quantity: json['quantity'] is int
+          ? json['quantity']
+          : int.tryParse(json['quantity']?.toString() ?? '1'),
       price: OrderModel._parseDouble(json['price']),
       note: json['note']?.toString(),
     );
@@ -192,56 +234,114 @@ class OrderItem {
   }
 }
 
-class ReceiverInfo {
-  final String name;
-  final String phoneNumber;
+class AddressData {
+  final double? lat;
+  final double? lon;
+  final String? desc;
 
-  ReceiverInfo({
-    required this.name,
-    required this.phoneNumber,
+  AddressData({
+    this.lat,
+    this.lon,
+    this.desc,
   });
 
-  factory ReceiverInfo.fromJson(Map<String, dynamic> json) {
-    return ReceiverInfo(
-      name: json['name']?.toString() ?? '',
-      phoneNumber: json['phone_number']?.toString() ?? '',
+  factory AddressData.fromJson(Map<String, dynamic> json) {
+    return AddressData(
+      lat: OrderModel._parseDouble(json['lat']),
+      lon: OrderModel._parseDouble(json['lon']),
+      desc: json['desc']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'lat': lat,
+      'lon': lon,
+      'desc': desc,
+    };
+  }
+}
+
+class ReceiverData {
+  final String? name;
+  final String? phone;
+  final String? note;
+
+  ReceiverData({
+    this.name,
+    this.phone,
+    this.note,
+  });
+
+  factory ReceiverData.fromJson(Map<String, dynamic> json) {
+    return ReceiverData(
+      name: json['name']?.toString(),
+      phone: json['phone']?.toString(),
+      note: json['note']?.toString(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'name': name,
-      'phone_number': phoneNumber,
+      'phone': phone,
+      'note': note,
     };
   }
 }
 
-class DriverInfo {
-  final String? id;
+class DriverData {
+  final int? id;
   final String? name;
   final String? phoneNumber;
+  final String? email;
   final String? avatar;
-  final String? vehiclePlate;
-  final double? rating;
+  final double? reviewRate;
+  final DriverLocation? currentLocation;
+  final int? status;
 
-  DriverInfo({
+  DriverData({
     this.id,
     this.name,
     this.phoneNumber,
+    this.email,
     this.avatar,
-    this.vehiclePlate,
-    this.rating,
+    this.reviewRate,
+    this.currentLocation,
+    this.status,
   });
 
-  factory DriverInfo.fromJson(Map<String, dynamic> json) {
-    return DriverInfo(
-      id: json['id']?.toString(),
+  factory DriverData.fromJson(Map<String, dynamic> json) {
+    return DriverData(
+      id: json['id'] is int
+          ? json['id']
+          : int.tryParse(json['id']?.toString() ?? ''),
       name: json['name']?.toString(),
       phoneNumber: json['phone_number']?.toString(),
+      email: json['email']?.toString(),
       avatar: json['avatar']?.toString(),
-      vehiclePlate: json['vehicle_plate']?.toString(),
-      rating: OrderModel._parseDouble(json['rating']),
+      reviewRate: OrderModel._parseDouble(json['review_rate']),
+      currentLocation: json['current_location'] is Map<String, dynamic>
+          ? DriverLocation.fromJson(json['current_location'])
+          : null,
+      status: json['status'] is int
+          ? json['status']
+          : int.tryParse(json['status']?.toString() ?? ''),
     );
+  }
+
+  // Getter cho driver status name theo documentation
+  String get statusName {
+    switch (status) {
+      case 1:
+        return 'Sẵn sàng nhận đơn';
+      case 2:
+        return 'Offline';
+      case 3:
+        return 'Đang giao hàng';
+      default:
+        return 'Không xác định';
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -249,9 +349,35 @@ class DriverInfo {
       'id': id,
       'name': name,
       'phone_number': phoneNumber,
+      'email': email,
       'avatar': avatar,
-      'vehicle_plate': vehiclePlate,
-      'rating': rating,
+      'review_rate': reviewRate,
+      'current_location': currentLocation?.toJson(),
+      'status': status,
+    };
+  }
+}
+
+class DriverLocation {
+  final double? lat;
+  final double? lon;
+
+  DriverLocation({
+    this.lat,
+    this.lon,
+  });
+
+  factory DriverLocation.fromJson(Map<String, dynamic> json) {
+    return DriverLocation(
+      lat: OrderModel._parseDouble(json['lat']),
+      lon: OrderModel._parseDouble(json['lon']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'lat': lat,
+      'lon': lon,
     };
   }
 }

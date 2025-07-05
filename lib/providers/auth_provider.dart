@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:customer_app/models/user_model.dart';
 import 'package:customer_app/services/auth_service.dart';
+import 'package:customer_app/services/fcm_service_v2.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:math' as math;
 
@@ -91,6 +92,10 @@ class AuthProvider with ChangeNotifier {
 
       _isAuthenticated = true;
       await fetchCurrentUser();
+
+      // Register FCM token sau khi đăng ký thành công theo doc
+      await FcmService.registerToken();
+
       return true;
     } catch (e) {
       _setError('Lỗi đăng ký: ${e.toString()}');
@@ -136,6 +141,10 @@ class AuthProvider with ChangeNotifier {
 
       _isAuthenticated = true;
       await fetchCurrentUser();
+
+      // Register FCM token sau khi đăng nhập thành công theo doc
+      await FcmService.registerToken();
+
       return true;
     } catch (e) {
       _setError('Lỗi đăng nhập: ${e.toString()}');
@@ -158,6 +167,10 @@ class AuthProvider with ChangeNotifier {
         _isAuthenticated = true;
         _setSuccess('Đăng nhập thành công');
         await fetchCurrentUser();
+
+        // Register FCM token sau khi đăng nhập thành công theo doc
+        await FcmService.registerToken();
+
         return true;
       } else {
         _setError(result['message'] ?? 'Đăng nhập thất bại');
@@ -175,6 +188,9 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     _setLoading(true);
     try {
+      // Remove FCM token trước khi logout theo doc
+      await FcmService.removeToken();
+
       await _authService.logout();
       _isAuthenticated = false;
       _currentUser = null;

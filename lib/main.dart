@@ -3,14 +3,25 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:customer_app/providers/auth_provider.dart';
 import 'package:customer_app/providers/order_provider.dart';
+import 'package:customer_app/providers/notification_provider.dart';
 import 'package:customer_app/screens/auth/phone_input_screen.dart';
 import 'package:customer_app/screens/auth/otp_verification_screen.dart';
 import 'package:customer_app/screens/main_screen.dart';
+import 'package:customer_app/screens/test/notification_test_screen.dart';
+import 'package:customer_app/screens/test/order_detail_demo_screen.dart';
+import 'package:customer_app/screens/test/order_list_test_screen.dart';
+import 'package:customer_app/screens/order/order_detail_screen.dart';
+import 'package:customer_app/services/navigation_service.dart';
+import 'package:customer_app/services/fcm_service_v2.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  // Initialize FCM Service theo FCM v1 API documentation
+  await FcmService.initialize();
+
   runApp(const MyApp());
 }
 
@@ -23,9 +34,11 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (context) => AuthProvider()),
         ChangeNotifierProvider(create: (context) => OrderProvider()),
+        ChangeNotifierProvider(create: (context) => NotificationProvider()),
       ],
       child: MaterialApp(
         title: 'Customer App',
+        navigatorKey: NavigationService.navigatorKey,
         theme: ThemeData(
           primarySwatch: Colors.purple,
           scaffoldBackgroundColor: Colors.white,
@@ -35,6 +48,9 @@ class MyApp extends StatelessWidget {
           '/login': (context) => const PhoneInputScreen(isLogin: true),
           '/register': (context) => const PhoneInputScreen(isLogin: false),
           '/home': (context) => const MainScreen(),
+          '/test-notifications': (context) => const NotificationTestScreen(),
+          '/test-order-detail': (context) => const OrderDetailDemoScreen(),
+          '/test-order-list': (context) => const OrderListTestScreen(),
         },
         onGenerateRoute: (settings) {
           if (settings.name == '/otp') {
@@ -44,6 +60,12 @@ class MyApp extends StatelessWidget {
                 phoneNumber: args['phoneNumber'] as String,
                 isLogin: args['isLogin'] as bool,
               ),
+            );
+          }
+          if (settings.name == '/order-detail') {
+            final orderId = settings.arguments as String;
+            return MaterialPageRoute(
+              builder: (context) => OrderDetailScreen(orderId: orderId),
             );
           }
           return null;
